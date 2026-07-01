@@ -861,7 +861,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.5";
+    const appVersion = "1.2.6";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1196,6 +1196,20 @@
       if (!confirmed) return;
       const historyIds = new Set(history.map(order => order.id));
       state.orders = state.orders.filter(order => !historyIds.has(order.id));
+      let nextNumber = state.orders
+        .filter(order => order.status !== "draft")
+        .reduce((max, order) => {
+          const match = /^客人 (\d+)$/.exec(order.name);
+          return match ? Math.max(max, Number(match[1])) : max;
+        }, 0);
+      state.orders
+        .filter(order => order.status === "draft")
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .forEach(order => {
+          nextNumber += 1;
+          order.name = `客人 ${nextNumber}`;
+          order.updatedAt = new Date().toISOString();
+        });
       if (historyIds.has(state.activeId)) state.activeId = null;
       persist();
       render();
