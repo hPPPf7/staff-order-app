@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>點餐記錄</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f3ef;
+      --panel: #ffffff;
+      --panel-soft: #fbfaf8;
+      --ink: #23211f;
+      --muted: #776f66;
+      --line: #ded8cf;
+      --brand: #b72f2a;
+      --brand-dark: #8d201d;
+      --green: #19725b;
+      --amber: #d68c11;
+      --shadow: 0 16px 42px rgba(69, 52, 34, 0.12);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .update-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(35, 33, 31, 0.48);
+    }
+
+    .update-overlay[hidden] {
+      display: none;
+    }
+
+    .update-dialog {
+      width: min(440px, 100%);
+      border-radius: 8px;
+      padding: 22px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .update-dialog h2 {
+      margin-bottom: 8px;
+      font-size: 22px;
+    }
+
+    .update-dialog p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .update-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(360px, 0.85fr) minmax(460px, 1.15fr);
+      gap: 18px;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .left,
+    .right {
+      min-width: 0;
+      max-height: calc(100vh - 36px);
+      overflow: hidden;
+    }
+
+    .left {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .right {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .clock {
+      min-width: 96px;
+      color: var(--muted);
+      text-align: right;
+      font-weight: 700;
+    }
+
+    .customer-strip {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .customer-input {
+      flex: 1;
+      min-width: 0;
+      height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 15px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 18px;
+      outline: none;
+    }
+
+    .customer-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(183, 47, 42, 0.12);
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .danger-btn,
+    .ghost-btn {
+      min-height: 44px;
+      border-radius: 8px;
+      padding: 0 16px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .primary-btn {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .primary-btn:active {
+      background: var(--brand-dark);
+    }
+
+    .secondary-btn {
+      background: #efe8de;
+      color: #3c332c;
+    }
+
+    .danger-btn {
+      background: #f3dfdc;
+      color: #9b211e;
+    }
+
+    .ghost-btn {
+      background: transparent;
+      color: var(--muted);
+      min-height: 36px;
+      padding: 0 10px;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .menu-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .menu-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .menu-card.wide .option-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .menu-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .menu-title h2 {
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .price {
+      color: var(--brand);
+      font-weight: 900;
+      font-size: 20px;
+    }
+
+    .option-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .option-btn {
+      min-height: 56px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    .option-btn strong {
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .option-btn span {
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 800;
+    }
+
+    .option-btn:active {
+      border-color: var(--brand);
+      background: #fff2ee;
+      transform: translateY(1px);
+    }
+
+    .pending-panel,
+    .order-panel,
+    .records-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .order-panel {
+      display: flex;
+      flex-direction: column;
+      height: 310px;
+      min-height: 310px;
+    }
+
+    .pending-panel {
+      overflow: hidden;
+      border-color: #c74335;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pending-head {
+      padding: 16px;
+      background: #b72f2a;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pending-head h2 {
+      font-size: 30px;
+      line-height: 1.05;
+    }
+
+    .pending-stats {
+      text-align: right;
+      font-weight: 900;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+
+    .pending-count {
+      font-size: 28px;
+    }
+
+    .pending-list {
+      display: grid;
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 10px;
+      background: #fff9f6;
+      align-content: start;
+    }
+
+    .pending-card {
+      border: 1px solid #e2b2a8;
+      border-radius: 8px;
+      background: #fff;
+      padding: 9px 10px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .pending-card.active {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(183, 47, 42, 0.13);
+    }
+
+    .pending-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .pending-name {
+      font-size: 16px;
+      font-weight: 950;
+      line-height: 1.15;
+    }
+
+    .pending-time {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    .pending-total {
+      color: var(--brand);
+      font-size: 20px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .pending-lines {
+      display: grid;
+      gap: 4px;
+      color: #2f2924;
+      font-size: 15px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .pending-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+    }
+
+    .pending-card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid #f0d7cf;
+      padding-top: 7px;
+    }
+
+    .pending-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pending-card-actions .secondary-btn,
+    .pending-card-actions .primary-btn {
+      min-height: 32px;
+      border-radius: 7px;
+      padding: 0 10px;
+      font-size: 14px;
+    }
+
+    .panel-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-head h2 {
+      font-size: 22px;
+    }
+
+    .current-customer {
+      color: var(--muted);
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .items {
+      flex: 1;
+      height: 126px;
+      min-height: 126px;
+      max-height: 126px;
+      padding: 12px 16px;
+      overflow: auto;
+    }
+
+    .empty {
+      height: 100%;
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      padding: 20px;
+    }
+
+    .line-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee8df;
+    }
+
+    .line-item:last-child {
+      border-bottom: 0;
+    }
+
+    .line-name {
+      font-weight: 900;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .line-meta {
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 700;
+    }
+
+    .qty-control {
+      display: grid;
+      grid-template-columns: 42px 42px 42px;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .qty-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: #efe8de;
+      color: var(--ink);
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .qty {
+      text-align: center;
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .item-total {
+      grid-column: 2;
+      color: var(--brand);
+      font-weight: 900;
+      text-align: right;
+      align-self: center;
+    }
+
+    .total-bar {
+      border-top: 1px solid var(--line);
+      padding: 14px 16px 16px;
+      background: var(--panel-soft);
+      border-radius: 0 0 8px 8px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .total-label {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .total-number {
+      color: var(--brand);
+      font-size: 36px;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .records-panel {
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 8px;
+      background: #eee8df;
+    }
+
+    .tab {
+      height: 42px;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 900;
+    }
+
+    .tab.active {
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: 0 4px 12px rgba(69, 52, 34, 0.1);
+    }
+
+    .records {
+      display: grid;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .record {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .record-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .record-name {
+      font-size: 18px;
+      font-weight: 950;
+      line-height: 1.2;
+    }
+
+    .record-time {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+      margin-top: 3px;
+    }
+
+    .status {
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-weight: 900;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .status.open {
+      color: #095b45;
+      background: #dcefe8;
+    }
+
+    .status.done {
+      color: #7b4b05;
+      background: #f8e4bb;
+    }
+
+    .status.draft {
+      color: #4b5563;
+      background: #e8eaed;
+    }
+
+    .record-lines {
+      color: #453d36;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .record-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid #e9e1d8;
+      padding-top: 8px;
+    }
+
+    .record-total {
+      color: var(--brand);
+      font-size: 20px;
+      font-weight: 950;
+    }
+
+    .record-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        height: auto;
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        overflow: visible;
+      }
+
+      body {
+        overflow: auto;
+      }
+
+      .left,
+      .right {
+        max-height: none;
+        overflow: visible;
+      }
+
+      .order-panel {
+        min-height: auto;
+      }
+
+      .pending-list,
+      .items {
+        max-height: 45vh;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .app {
+        padding: 10px;
+        gap: 10px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .customer-strip {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .menu-grid,
+      .option-grid,
+      .actions,
+      .pending-card-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .pending-head,
+      .pending-card-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .pending-head h2 {
+        font-size: 26px;
+      }
+
+      .pending-stats {
+        text-align: left;
+      }
+
+      .menu-card {
+        min-height: 0;
+      }
+
+      .line-item {
+        grid-template-columns: 1fr;
+      }
+
+      .qty-control,
+      .item-total {
+        grid-column: auto;
+      }
+
+      .item-total {
+        text-align: left;
+      }
+
+      .record-main,
+      .record-bottom {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .record-buttons {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="left" aria-label="待出餐與歷史紀錄">
+      <div class="topbar">
+        <div>
+          <h1>員工點餐記錄</h1>
+          <p class="current-customer" id="summaryText">新增客人後開始點餐</p>
+        </div>
+        <div class="clock" id="clock">--:--</div>
+      </div>
+
+      <section class="pending-panel" aria-label="待出餐訂單">
+        <div class="pending-head">
+          <div>
+            <h2>待出餐</h2>
+            <p id="pendingTotalText">目前沒有未給餐訂單</p>
+          </div>
+          <div class="pending-stats">
+            <div class="pending-count" id="pendingCount">0 筆</div>
+            <div id="pendingItemsCount">0 份餐點</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" id="openTab" type="button">待出餐</button>
+          <button class="tab" id="historyTab" type="button">歷史紀錄</button>
+        </div>
+        <div class="pending-list" id="pendingList"></div>
+        <div class="records" id="records"></div>
+      </section>
+    </section>
+
+    <aside class="right" aria-label="點餐與計算">
+      <section class="order-panel" aria-label="目前點餐">
+        <div class="panel-head">
+          <div>
+            <h2>點餐與計算</h2>
+            <p class="current-customer" id="activeCustomer">尚未選擇</p>
+          </div>
+          <button class="ghost-btn" id="clearAllBtn" type="button">清空全部</button>
+        </div>
+        <div class="items" id="items"></div>
+        <div class="total-bar">
+          <div class="total-row">
+            <span class="total-label">合計</span>
+            <span class="total-number" id="total">$0</span>
+          </div>
+          <div class="actions">
+            <button class="secondary-btn" id="saveBtn" type="button">清空目前</button>
+            <button class="primary-btn" id="doneBtn" type="button">送出待出餐</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="menu-grid" id="menu"></div>
+    </aside>
+  </main>
+
+  <div class="update-overlay" id="updateOverlay" role="dialog" aria-modal="true" aria-labelledby="updateTitle" hidden>
+    <div class="update-dialog">
+      <h2 id="updateTitle">有新的版本</h2>
+      <p id="updateMessage">點擊更新以下載最新版點餐助手。</p>
+      <div class="update-actions">
+        <button class="secondary-btn" id="updateLaterBtn" type="button">稍後</button>
+        <button class="primary-btn" id="updateNowBtn" type="button">下載更新</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const appVersion = "1.0.0";
+    const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
+    let updateDownloadUrl = "";
+    let lastUpdateCheck = 0;
+
+    const menu = [
+      {
+        title: "豬肉餡餅",
+        options: [
+          { key: "pie-original", name: "豬肉餡餅", variant: "原味", price: 50 },
+          { key: "pie-spicy", name: "豬肉餡餅", variant: "辣味", price: 50 }
+        ]
+      },
+      {
+        title: "韭菜盒",
+        options: [
+          { key: "chive-box", name: "韭菜盒", variant: "", price: 40 }
+        ]
+      },
+      {
+        title: "飛碟餅",
+        wide: true,
+        options: [
+          { key: "ufo-egg", name: "飛碟餅", variant: "蔥蛋", price: 60 },
+          { key: "ufo-meat", name: "飛碟餅", variant: "加肉", price: 70 },
+          { key: "ufo-cheese", name: "飛碟餅", variant: "加起司", price: 70 },
+          { key: "ufo-all", name: "飛碟餅", variant: "全加", price: 80 }
+        ]
+      }
+    ];
+
+    const storageKey = "staff-order-app-v1";
+    const state = {
+      orders: [],
+      activeId: null,
+      tab: "open"
+    };
+
+    const el = {
+      menu: document.getElementById("menu"),
+      activeCustomer: document.getElementById("activeCustomer"),
+      summaryText: document.getElementById("summaryText"),
+      items: document.getElementById("items"),
+      total: document.getElementById("total"),
+      saveBtn: document.getElementById("saveBtn"),
+      doneBtn: document.getElementById("doneBtn"),
+      pendingList: document.getElementById("pendingList"),
+      pendingCount: document.getElementById("pendingCount"),
+      pendingItemsCount: document.getElementById("pendingItemsCount"),
+      pendingTotalText: document.getElementById("pendingTotalText"),
+      records: document.getElementById("records"),
+      openTab: document.getElementById("openTab"),
+      historyTab: document.getElementById("historyTab"),
+      clearAllBtn: document.getElementById("clearAllBtn"),
+      clock: document.getElementById("clock"),
+      updateOverlay: document.getElementById("updateOverlay"),
+      updateMessage: document.getElementById("updateMessage"),
+      updateLaterBtn: document.getElementById("updateLaterBtn"),
+      updateNowBtn: document.getElementById("updateNowBtn")
+    };
+
+    function compareVersions(left, right) {
+      const leftParts = left.replace(/^v/i, "").split(".").map(Number);
+      const rightParts = right.replace(/^v/i, "").split(".").map(Number);
+      const length = Math.max(leftParts.length, rightParts.length);
+
+      for (let index = 0; index < length; index += 1) {
+        const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+        if (difference !== 0) return difference;
+      }
+
+      return 0;
+    }
+
+    async function checkForUpdates() {
+      lastUpdateCheck = Date.now();
+
+      try {
+        const response = await fetch(latestReleaseUrl, {
+          cache: "no-store",
+          headers: { Accept: "application/vnd.github+json" }
+        });
+        if (!response.ok) return;
+
+        const release = await response.json();
+        const latestVersion = String(release.tag_name || "").replace(/^v/i, "");
+        if (!latestVersion || compareVersions(latestVersion, appVersion) <= 0) return;
+
+        const apk = Array.isArray(release.assets)
+          ? release.assets.find(asset => asset.name === "staff-order-app.apk")
+          : null;
+        updateDownloadUrl = apk?.browser_download_url || release.html_url || "";
+        if (!updateDownloadUrl) return;
+
+        el.updateMessage.textContent = `目前版本 ${appVersion}，最新版本 ${latestVersion}。`;
+        el.updateOverlay.hidden = false;
+      } catch (error) {
+        // The ordering app remains fully usable while offline.
+      }
+    }
+
+    async function openUpdateDownload() {
+      if (!updateDownloadUrl) return;
+
+      try {
+        const browserPlugin = window.Capacitor?.Plugins?.Browser;
+        if (browserPlugin?.open) {
+          await browserPlugin.open({ url: updateDownloadUrl });
+          return;
+        }
+      } catch (error) {
+        // Fall back to a regular browser tab.
+      }
+
+      window.open(updateDownloadUrl, "_blank", "noopener");
+    }
+
+    function money(value) {
+      return `$${value}`;
+    }
+
+    function nowLabel(date = new Date()) {
+      return date.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function load() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && Array.isArray(saved.orders)) {
+          state.orders = saved.orders;
+          state.activeId = saved.activeId || null;
+        }
+      } catch (error) {
+        state.orders = [];
+        state.activeId = null;
+      }
+    }
+
+    function persist() {
+      localStorage.setItem(storageKey, JSON.stringify({
+        orders: state.orders,
+        activeId: state.activeId
+      }));
+    }
+
+    function activeOrder() {
+      return state.orders.find(order => order.id === state.activeId) || null;
+    }
+
+    function orderTotal(order) {
+      return order.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    }
+
+    function orderCount(order) {
+      return order.items.reduce((sum, item) => sum + item.qty, 0);
+    }
+
+    function itemLabel(item) {
+      return item.variant ? `${item.name}（${item.variant}）` : item.name;
+    }
+
+    function statusLabel(order) {
+      if (order.status === "done") return "已給餐";
+      if (order.status === "draft") return "點餐中";
+      return "待出餐";
+    }
+
+    function pendingOrders() {
+      return state.orders
+        .filter(order => order.status === "open")
+        .sort((a, b) => new Date(a.submittedAt || a.createdAt) - new Date(b.submittedAt || b.createdAt));
+    }
+
+    function historyOrders() {
+      return state.orders
+        .filter(order => order.status !== "draft")
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+    }
+
+    function nextOrderName() {
+      const maxNumber = state.orders.reduce((max, order) => {
+        const match = /^客人 (\d+)$/.exec(order.name);
+        return match ? Math.max(max, Number(match[1])) : max;
+      }, 0);
+      return `客人 ${maxNumber + 1}`;
+    }
+
+    function createOrder() {
+      const order = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        name: nextOrderName(),
+        items: [],
+        status: "draft",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.orders.push(order);
+      state.activeId = order.id;
+      persist();
+      render();
+    }
+
+    function addItem(option) {
+      let order = activeOrder();
+      if (!order || order.status === "done") {
+        createOrder();
+        order = activeOrder();
+      }
+
+      const existing = order.items.find(item => item.key === option.key);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        order.items.push({ ...option, qty: 1 });
+      }
+      order.updatedAt = new Date().toISOString();
+      persist();
+      render();
+    }
+
+    function updateQty(key, delta) {
+      const order = activeOrder();
+      if (!order) return;
+      const item = order.items.find(row => row.key === key);
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) {
+        order.items = order.items.filter(row => row.key !== key);
+      }
+      order.updatedAt = new Date().toISOString();
+      persist();
+      render();
+    }
+
+    function markDone() {
+      const order = activeOrder();
+      if (!order || order.items.length === 0 || order.status !== "open") return;
+      order.status = "done";
+      order.updatedAt = new Date().toISOString();
+      state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
+      persist();
+      render();
+    }
+
+    function submitActiveOrder() {
+      const order = activeOrder();
+      if (!order || order.items.length === 0) return;
+      if (order.status === "done") return;
+      order.status = "open";
+      order.submittedAt = order.submittedAt || new Date().toISOString();
+      order.updatedAt = new Date().toISOString();
+      state.tab = "open";
+      state.activeId = null;
+      persist();
+      render();
+    }
+
+    function removeOrder(id) {
+      state.orders = state.orders.filter(order => order.id !== id);
+      if (state.activeId === id) {
+        state.activeId = state.orders.find(order => order.status === "draft")?.id || null;
+      }
+      persist();
+      render();
+    }
+
+    function reopenOrder(id) {
+      const order = state.orders.find(row => row.id === id);
+      if (!order) return;
+      order.status = "open";
+      order.submittedAt = order.submittedAt || new Date().toISOString();
+      order.updatedAt = new Date().toISOString();
+      state.activeId = order.id;
+      state.tab = "open";
+      persist();
+      render();
+    }
+
+    function clearActiveOrder() {
+      const order = activeOrder();
+      if (!order) return;
+      if (order.status === "draft") {
+        removeOrder(order.id);
+        return;
+      }
+      order.items = [];
+      order.updatedAt = new Date().toISOString();
+      persist();
+      render();
+    }
+
+    function clearAll() {
+      if (!state.orders.length) return;
+      const confirmed = window.confirm("要清空所有點餐紀錄嗎？");
+      if (!confirmed) return;
+      state.orders = [];
+      state.activeId = null;
+      persist();
+      render();
+    }
+
+    function renderMenu() {
+      el.menu.innerHTML = menu.map(group => `
+        <section class="menu-card ${group.wide ? "wide" : ""}">
+          <div class="menu-title">
+            <h2>${group.title}</h2>
+            <span class="price">${group.options.length === 1 ? money(group.options[0].price) : "選口味"}</span>
+          </div>
+          <div class="option-grid">
+            ${group.options.map(option => `
+              <button class="option-btn" type="button" data-add="${option.key}">
+                <strong>${option.variant || option.name}</strong>
+                <span>${option.variant ? option.name + " " : ""}${money(option.price)}</span>
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `).join("");
+    }
+
+    function renderCurrentOrder() {
+      const order = activeOrder();
+      if (!order) {
+        el.activeCustomer.textContent = "尚未選擇";
+        el.summaryText.textContent = "右側直接點餐，送出後進待出餐";
+        el.items.innerHTML = `<div class="empty">直接點餐，系統會自動建立下一位客人。</div>`;
+        el.total.textContent = money(0);
+        el.doneBtn.disabled = true;
+        el.doneBtn.textContent = "送出待出餐";
+        el.saveBtn.disabled = true;
+        return;
+      }
+
+      el.activeCustomer.textContent = `${order.name} · ${statusLabel(order)}`;
+      el.summaryText.textContent = `${order.name}：${orderCount(order)} 份，${money(orderTotal(order))}`;
+      el.total.textContent = money(orderTotal(order));
+      el.doneBtn.disabled = order.items.length === 0 || order.status === "done";
+      el.doneBtn.textContent = order.status === "open" ? "更新待出餐" : "送出待出餐";
+      el.saveBtn.disabled = order.status === "done";
+
+      if (!order.items.length) {
+        el.items.innerHTML = `<div class="empty">尚未加入餐點。</div>`;
+        return;
+      }
+
+      el.items.innerHTML = order.items.map(item => `
+        <div class="line-item">
+          <div>
+            <div class="line-name">${itemLabel(item)}</div>
+            <div class="line-meta">${money(item.price)} / 份</div>
+          </div>
+          <div class="qty-control" aria-label="${itemLabel(item)} 數量">
+            <button class="qty-btn" type="button" data-qty="${item.key}" data-delta="-1">−</button>
+            <div class="qty">${item.qty}</div>
+            <button class="qty-btn" type="button" data-qty="${item.key}" data-delta="1">＋</button>
+          </div>
+          <div class="item-total">${money(item.price * item.qty)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderRecords() {
+      const source = historyOrders();
+
+      el.openTab.classList.toggle("active", state.tab === "open");
+      el.historyTab.classList.toggle("active", state.tab === "history");
+      el.records.style.display = state.tab === "history" ? "grid" : "none";
+
+      if (!source.length) {
+        el.records.innerHTML = `<div class="empty">目前沒有歷史紀錄。</div>`;
+        return;
+      }
+
+      el.records.innerHTML = source.map(order => `
+        <article class="record">
+          <div class="record-main">
+            <div>
+              <div class="record-name">${order.name}</div>
+              <div class="record-time">${nowLabel(new Date(order.createdAt))}</div>
+            </div>
+            <span class="status ${order.status}">${statusLabel(order)}</span>
+          </div>
+          <div class="record-lines">
+            ${order.items.length ? order.items.map(item => `${itemLabel(item)} × ${item.qty}`).join("、") : "尚未加入餐點"}
+          </div>
+          <div class="record-bottom">
+            <div class="record-total">${money(orderTotal(order))}</div>
+            <div class="record-buttons">
+              <button class="secondary-btn" type="button" data-select="${order.id}">查看</button>
+              ${order.status === "open"
+                ? `<button class="primary-btn" type="button" data-complete="${order.id}">給餐</button>`
+                : `<button class="secondary-btn" type="button" data-reopen="${order.id}">恢復</button>`}
+              <button class="danger-btn" type="button" data-remove="${order.id}">刪除</button>
+            </div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderPendingOrders() {
+      const pending = pendingOrders();
+      const totalItems = pending.reduce((sum, order) => sum + orderCount(order), 0);
+      const totalPrice = pending.reduce((sum, order) => sum + orderTotal(order), 0);
+
+      el.pendingCount.textContent = `${pending.length} 筆`;
+      el.pendingItemsCount.textContent = `${totalItems} 份餐點`;
+      el.pendingTotalText.textContent = pending.length
+        ? `未給餐合計 ${money(totalPrice)}`
+        : "目前沒有未給餐訂單";
+      el.pendingList.style.display = state.tab === "open" ? "grid" : "none";
+
+      if (!pending.length) {
+        el.pendingList.innerHTML = `<div class="empty">沒有待出餐。右側點完餐並送出後才會顯示在這裡。</div>`;
+        return;
+      }
+
+      el.pendingList.innerHTML = pending.map(order => `
+        <article class="pending-card ${order.id === state.activeId ? "active" : ""}">
+          <div class="pending-card-head">
+            <div>
+              <div class="pending-name">${order.name}</div>
+              <div class="pending-time">${nowLabel(new Date(order.createdAt))} · ${orderCount(order)} 份</div>
+            </div>
+          </div>
+          <div class="pending-lines">
+            ${order.items.length
+              ? order.items.map(item => `
+                <div class="pending-line">
+                  <span>${itemLabel(item)}</span>
+                  <span>× ${item.qty}</span>
+                </div>
+              `).join("")
+              : `<div class="pending-line"><span>尚未加入餐點</span><span>× 0</span></div>`}
+          </div>
+          <div class="pending-card-actions">
+            <div class="pending-total">${money(orderTotal(order))}</div>
+            <div class="pending-buttons">
+              <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
+              <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length ? "" : "disabled"}>完成</button>
+            </div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function render() {
+      renderPendingOrders();
+      renderCurrentOrder();
+      renderRecords();
+    }
+
+    renderMenu();
+    load();
+    render();
+    checkForUpdates();
+    el.clock.textContent = nowLabel();
+    setInterval(() => {
+      el.clock.textContent = nowLabel();
+    }, 30000);
+
+    el.menu.addEventListener("click", event => {
+      const button = event.target.closest("[data-add]");
+      if (!button) return;
+      const option = menu.flatMap(group => group.options).find(row => row.key === button.dataset.add);
+      if (option) addItem(option);
+    });
+
+    el.items.addEventListener("click", event => {
+      const button = event.target.closest("[data-qty]");
+      if (!button) return;
+      updateQty(button.dataset.qty, Number(button.dataset.delta));
+    });
+
+    el.records.addEventListener("click", event => {
+      const select = event.target.closest("[data-select]");
+      const complete = event.target.closest("[data-complete]");
+      const reopen = event.target.closest("[data-reopen]");
+      const remove = event.target.closest("[data-remove]");
+
+      if (select) state.activeId = select.dataset.select;
+      if (complete) {
+        state.activeId = complete.dataset.complete;
+        markDone();
+        return;
+      }
+      if (reopen) {
+        reopenOrder(reopen.dataset.reopen);
+        return;
+      }
+      if (remove) {
+        removeOrder(remove.dataset.remove);
+        return;
+      }
+      persist();
+      render();
+    });
+
+    el.pendingList.addEventListener("click", event => {
+      const select = event.target.closest("[data-select-pending]");
+      const complete = event.target.closest("[data-complete-pending]");
+
+      if (select) {
+        state.activeId = select.dataset.selectPending;
+        persist();
+        render();
+      }
+
+      if (complete) {
+        state.activeId = complete.dataset.completePending;
+        markDone();
+      }
+    });
+
+    el.openTab.addEventListener("click", () => {
+      state.tab = "open";
+      renderPendingOrders();
+      renderRecords();
+    });
+
+    el.historyTab.addEventListener("click", () => {
+      state.tab = "history";
+      renderPendingOrders();
+      renderRecords();
+    });
+
+    el.saveBtn.addEventListener("click", clearActiveOrder);
+
+    el.doneBtn.addEventListener("click", submitActiveOrder);
+    el.clearAllBtn.addEventListener("click", clearAll);
+    el.updateLaterBtn.addEventListener("click", () => {
+      el.updateOverlay.hidden = true;
+    });
+    el.updateNowBtn.addEventListener("click", openUpdateDownload);
+
+    document.addEventListener("visibilitychange", () => {
+      const oneHour = 60 * 60 * 1000;
+      if (!document.hidden && Date.now() - lastUpdateCheck > oneHour) {
+        checkForUpdates();
+      }
+    });
+  </script>
+</body>
+</html>

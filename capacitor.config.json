@@ -1,0 +1,8 @@
+{
+  "appId": "tw.com.stafforder.app",
+  "appName": "點餐助手",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
