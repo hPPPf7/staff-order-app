@@ -38,4 +38,12 @@ const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 packageJson.version = version;
 fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
 
+const packageLockPath = path.join(root, "package-lock.json");
+const packageLock = JSON.parse(fs.readFileSync(packageLockPath, "utf8"));
+packageLock.version = version;
+if (packageLock.packages?.[""]) {
+  packageLock.packages[""].version = version;
+}
+fs.writeFileSync(packageLockPath, `${JSON.stringify(packageLock, null, 2)}\n`);
+
 console.log(`Prepared version ${version} (${versionCode}).`);

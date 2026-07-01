@@ -170,6 +170,7 @@
 
     .primary-btn,
     .secondary-btn,
+    .success-btn,
     .danger-btn,
     .ghost-btn {
       min-height: 44px;
@@ -195,6 +196,11 @@
     .secondary-btn {
       background: #efe8de;
       color: #3c332c;
+    }
+
+    .success-btn {
+      background: var(--green);
+      color: #fff;
     }
 
     .danger-btn {
@@ -427,7 +433,8 @@
     }
 
     .pending-card-actions .secondary-btn,
-    .pending-card-actions .primary-btn {
+    .pending-card-actions .primary-btn,
+    .pending-card-actions .success-btn {
       min-height: 32px;
       border-radius: 7px;
       padding: 0 10px;
@@ -646,6 +653,11 @@
       background: #f8e4bb;
     }
 
+    .status.served {
+      color: #155e75;
+      background: #dff1f5;
+    }
+
     .status.draft {
       color: #4b5563;
       background: #e8eaed;
@@ -845,7 +857,7 @@
   </div>
 
   <script>
-    const appVersion = "1.0.0";
+    const appVersion = "1.1.0";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1007,20 +1019,21 @@
     }
 
     function statusLabel(order) {
-      if (order.status === "done") return "已給餐";
+      if (order.status === "done") return "已付款";
+      if (order.status === "served") return "已給餐";
       if (order.status === "draft") return "點餐中";
       return "待出餐";
     }
 
     function pendingOrders() {
       return state.orders
-        .filter(order => order.status === "open")
+        .filter(order => order.status === "open" || order.status === "served")
         .sort((a, b) => new Date(a.submittedAt || a.createdAt) - new Date(b.submittedAt || b.createdAt));
     }
 
     function historyOrders() {
       return state.orders
-        .filter(order => order.status !== "draft")
+        .filter(order => order.status === "done")
         .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
     }
 
@@ -1079,12 +1092,26 @@
       render();
     }
 
-    function markDone() {
+    function markServed() {
       const order = activeOrder();
       if (!order || order.items.length === 0 || order.status !== "open") return;
-      order.status = "done";
+      order.status = "served";
+      order.servedAt = new Date().toISOString();
       order.updatedAt = new Date().toISOString();
       state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
+      persist();
+      render();
+    }
+
+    function markPaid(id) {
+      const order = state.orders.find(row => row.id === id);
+      if (!order || order.status !== "served") return;
+      order.status = "done";
+      order.paidAt = new Date().toISOString();
+      order.updatedAt = new Date().toISOString();
+      if (state.activeId === order.id) {
+        state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
+      }
       persist();
       render();
     }
@@ -1094,6 +1121,7 @@
       if (!order || order.items.length === 0) return;
       if (order.status === "done") return;
       order.status = "open";
+      delete order.servedAt;
       order.submittedAt = order.submittedAt || new Date().toISOString();
       order.updatedAt = new Date().toISOString();
       state.tab = "open";
@@ -1115,6 +1143,8 @@
       const order = state.orders.find(row => row.id === id);
       if (!order) return;
       order.status = "open";
+      delete order.servedAt;
+      delete order.paidAt;
       order.submittedAt = order.submittedAt || new Date().toISOString();
       order.updatedAt = new Date().toISOString();
       state.activeId = order.id;
@@ -1182,7 +1212,7 @@
       el.summaryText.textContent = `${order.name}：${orderCount(order)} 份，${money(orderTotal(order))}`;
       el.total.textContent = money(orderTotal(order));
       el.doneBtn.disabled = order.items.length === 0 || order.status === "done";
-      el.doneBtn.textContent = order.status === "open" ? "更新待出餐" : "送出待出餐";
+      el.doneBtn.textContent = order.status === "draft" ? "送出待出餐" : "更新待出餐";
       el.saveBtn.disabled = order.status === "done";
 
       if (!order.items.length) {
@@ -1234,9 +1264,7 @@
             <div class="record-total">${money(orderTotal(order))}</div>
             <div class="record-buttons">
               <button class="secondary-btn" type="button" data-select="${order.id}">查看</button>
-              ${order.status === "open"
-                ? `<button class="primary-btn" type="button" data-complete="${order.id}">給餐</button>`
-                : `<button class="secondary-btn" type="button" data-reopen="${order.id}">恢復</button>`}
+              <button class="secondary-btn" type="button" data-reopen="${order.id}">恢復</button>
               <button class="danger-btn" type="button" data-remove="${order.id}">刪除</button>
             </div>
           </div>
@@ -1252,7 +1280,7 @@
       el.pendingCount.textContent = `${pending.length} 筆`;
       el.pendingItemsCount.textContent = `${totalItems} 份餐點`;
       el.pendingTotalText.textContent = pending.length
-        ? `未給餐合計 ${money(totalPrice)}`
+        ? `未付款合計 ${money(totalPrice)}`
         : "目前沒有未給餐訂單";
       el.pendingList.style.display = state.tab === "open" ? "grid" : "none";
 
@@ -1268,6 +1296,7 @@
               <div class="pending-name">${order.name}</div>
               <div class="pending-time">${nowLabel(new Date(order.createdAt))} · ${orderCount(order)} 份</div>
             </div>
+            <span class="status ${order.status}">${statusLabel(order)}</span>
           </div>
           <div class="pending-lines">
             ${order.items.length
@@ -1283,7 +1312,8 @@
             <div class="pending-total">${money(orderTotal(order))}</div>
             <div class="pending-buttons">
               <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
-              <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length ? "" : "disabled"}>完成</button>
+              <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length && order.status === "open" ? "" : "disabled"}>${order.status === "served" ? "已給餐" : "完成"}</button>
+              <button class="success-btn" type="button" data-paid-pending="${order.id}" ${order.status === "served" ? "" : "disabled"}>已付款</button>
             </div>
           </div>
         </article>
@@ -1320,16 +1350,10 @@
 
     el.records.addEventListener("click", event => {
       const select = event.target.closest("[data-select]");
-      const complete = event.target.closest("[data-complete]");
       const reopen = event.target.closest("[data-reopen]");
       const remove = event.target.closest("[data-remove]");
 
       if (select) state.activeId = select.dataset.select;
-      if (complete) {
-        state.activeId = complete.dataset.complete;
-        markDone();
-        return;
-      }
       if (reopen) {
         reopenOrder(reopen.dataset.reopen);
         return;
@@ -1345,6 +1369,7 @@
     el.pendingList.addEventListener("click", event => {
       const select = event.target.closest("[data-select-pending]");
       const complete = event.target.closest("[data-complete-pending]");
+      const paid = event.target.closest("[data-paid-pending]");
 
       if (select) {
         state.activeId = select.dataset.selectPending;
@@ -1354,7 +1379,11 @@
 
       if (complete) {
         state.activeId = complete.dataset.completePending;
-        markDone();
+        markServed();
+      }
+
+      if (paid) {
+        markPaid(paid.dataset.paidPending);
       }
     });
 
