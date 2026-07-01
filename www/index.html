@@ -113,7 +113,7 @@
       display: grid;
       gap: 14px;
       align-content: start;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: minmax(310px, 1fr) auto;
     }
 
     .topbar {
@@ -312,7 +312,7 @@
     .order-panel {
       display: flex;
       flex-direction: column;
-      height: 310px;
+      height: 100%;
       min-height: 310px;
     }
 
@@ -464,14 +464,15 @@
     }
 
     .items {
-      flex: none;
-      height: 154px;
-      min-height: 154px;
-      max-height: 154px;
+      flex: 1;
+      height: auto;
+      min-height: 0;
+      max-height: none;
       padding: 8px;
       overflow: auto;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(65px, 1fr));
       grid-auto-rows: 65px;
       align-content: start;
       gap: 8px;
@@ -734,11 +735,12 @@
 
       .right {
         min-height: calc(100vh - 36px);
+        grid-template-rows: minmax(390px, 1fr) auto;
       }
 
       .order-panel {
-        height: 390px;
-        min-height: auto;
+        height: 100%;
+        min-height: 390px;
       }
 
       .pending-list {
@@ -746,9 +748,10 @@
       }
 
       .items {
-        height: 234px;
-        min-height: 234px;
-        max-height: 234px;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        grid-template-rows: repeat(2, minmax(105px, 1fr));
         grid-auto-rows: 105px;
       }
     }
@@ -879,7 +882,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.2";
+    const appVersion = "1.2.3";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
