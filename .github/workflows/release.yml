@@ -4,9 +4,18 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example v1.0.0
+        required: true
+        default: v1.0.0
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   release:
@@ -37,7 +46,7 @@ jobs:
         run: npm ci
 
       - name: Prepare release version
-        run: npm run release:version -- "$GITHUB_REF_NAME"
+        run: npm run release:version -- "$RELEASE_TAG"
 
       - name: Restore signing key
         env:
@@ -64,4 +73,9 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" staff-order-app.apk --generate-notes --title "點餐助手 $GITHUB_REF_NAME"
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" staff-order-app.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" staff-order-app.apk --generate-notes --title "點餐助手 $RELEASE_TAG"
+          fi
