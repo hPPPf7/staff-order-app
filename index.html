@@ -442,16 +442,13 @@
     }
 
     .panel-head {
-      padding: 16px;
+      min-height: 42px;
+      padding: 6px 14px;
       border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-    }
-
-    .panel-head h2 {
-      font-size: 22px;
     }
 
     .current-customer {
@@ -463,12 +460,22 @@
     }
 
     .items {
-      flex: 1;
-      height: 126px;
-      min-height: 126px;
-      max-height: 126px;
-      padding: 12px 16px;
+      flex: none;
+      height: 154px;
+      min-height: 154px;
+      max-height: 154px;
+      padding: 8px;
       overflow: auto;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: 65px;
+      align-content: start;
+      gap: 8px;
+    }
+
+    .items .empty {
+      grid-column: 1 / -1;
+      min-height: 0;
     }
 
     .empty {
@@ -484,49 +491,59 @@
 
     .line-item {
       display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      padding: 12px 0;
-      border-bottom: 1px solid #eee8df;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto 28px;
+      gap: 4px 6px;
+      padding: 6px 8px;
+      border: 1px solid #eee8df;
+      border-radius: 6px;
+      background: var(--panel);
+      overflow: hidden;
     }
 
     .line-item:last-child {
-      border-bottom: 0;
+      border-bottom: 1px solid #eee8df;
+    }
+
+    .line-item > div:first-child {
+      grid-column: 1 / -1;
+      min-width: 0;
     }
 
     .line-name {
       font-weight: 900;
-      font-size: 18px;
-      line-height: 1.25;
+      font-size: 15px;
+      line-height: 1.15;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .line-meta {
-      color: var(--muted);
-      margin-top: 4px;
-      font-weight: 700;
+      display: none;
     }
 
     .qty-control {
       display: grid;
-      grid-template-columns: 42px 42px 42px;
+      grid-template-columns: 28px 28px 28px;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
 
     .qty-btn {
-      width: 42px;
-      height: 42px;
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       background: #efe8de;
       color: var(--ink);
-      font-size: 24px;
+      font-size: 18px;
       font-weight: 900;
     }
 
     .qty {
       text-align: center;
       font-weight: 900;
-      font-size: 18px;
+      font-size: 15px;
     }
 
     .item-total {
@@ -535,11 +552,12 @@
       font-weight: 900;
       text-align: right;
       align-self: center;
+      white-space: nowrap;
     }
 
     .total-bar {
       border-top: 1px solid var(--line);
-      padding: 14px 16px 16px;
+      padding: 10px 14px 12px;
       background: var(--panel-soft);
       border-radius: 0 0 8px 8px;
     }
@@ -549,7 +567,7 @@
       justify-content: space-between;
       align-items: baseline;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     .total-label {
@@ -559,7 +577,7 @@
 
     .total-number {
       color: var(--brand);
-      font-size: 36px;
+      font-size: 30px;
       font-weight: 950;
       line-height: 1;
     }
@@ -763,19 +781,6 @@
         min-height: 0;
       }
 
-      .line-item {
-        grid-template-columns: 1fr;
-      }
-
-      .qty-control,
-      .item-total {
-        grid-column: auto;
-      }
-
-      .item-total {
-        text-align: left;
-      }
-
       .record-main,
       .record-bottom {
         align-items: flex-start;
@@ -822,10 +827,7 @@
     <aside class="right" aria-label="點餐與計算">
       <section class="order-panel" aria-label="目前點餐">
         <div class="panel-head">
-          <div>
-            <h2>點餐與計算</h2>
-            <p class="current-customer" id="activeCustomer">尚未選擇</p>
-          </div>
+          <p class="current-customer" id="activeCustomer">尚未選擇</p>
           <button class="ghost-btn" id="clearAllBtn" type="button">清空全部</button>
         </div>
         <div class="items" id="items"></div>
@@ -857,7 +859,7 @@
   </div>
 
   <script>
-    const appVersion = "1.1.0";
+    const appVersion = "1.2.0";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -986,7 +988,10 @@
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey));
         if (saved && Array.isArray(saved.orders)) {
-          state.orders = saved.orders;
+          state.orders = saved.orders.map(order => ({
+            ...order,
+            paid: order.status === "done" ? true : Boolean(order.paid)
+          }));
           state.activeId = saved.activeId || null;
         }
       } catch (error) {
@@ -1051,6 +1056,7 @@
         name: nextOrderName(),
         items: [],
         status: "draft",
+        paid: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -1095,21 +1101,26 @@
     function markServed() {
       const order = activeOrder();
       if (!order || order.items.length === 0 || order.status !== "open") return;
-      order.status = "served";
       order.servedAt = new Date().toISOString();
+      order.status = order.paid ? "done" : "served";
       order.updatedAt = new Date().toISOString();
       state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
       persist();
       render();
     }
 
-    function markPaid(id) {
+    function togglePaid(id) {
       const order = state.orders.find(row => row.id === id);
-      if (!order || order.status !== "served") return;
-      order.status = "done";
-      order.paidAt = new Date().toISOString();
+      if (!order || order.status === "done") return;
+      order.paid = !order.paid;
+      if (order.paid) {
+        order.paidAt = new Date().toISOString();
+        if (order.status === "served") order.status = "done";
+      } else {
+        delete order.paidAt;
+      }
       order.updatedAt = new Date().toISOString();
-      if (state.activeId === order.id) {
+      if (order.status === "done" && state.activeId === order.id) {
         state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
       }
       persist();
@@ -1143,6 +1154,7 @@
       const order = state.orders.find(row => row.id === id);
       if (!order) return;
       order.status = "open";
+      order.paid = false;
       delete order.servedAt;
       delete order.paidAt;
       order.submittedAt = order.submittedAt || new Date().toISOString();
@@ -1275,12 +1287,14 @@
     function renderPendingOrders() {
       const pending = pendingOrders();
       const totalItems = pending.reduce((sum, order) => sum + orderCount(order), 0);
-      const totalPrice = pending.reduce((sum, order) => sum + orderTotal(order), 0);
+      const unpaidTotal = pending
+        .filter(order => !order.paid)
+        .reduce((sum, order) => sum + orderTotal(order), 0);
 
       el.pendingCount.textContent = `${pending.length} 筆`;
       el.pendingItemsCount.textContent = `${totalItems} 份餐點`;
       el.pendingTotalText.textContent = pending.length
-        ? `未付款合計 ${money(totalPrice)}`
+        ? `未付款合計 ${money(unpaidTotal)}`
         : "目前沒有未給餐訂單";
       el.pendingList.style.display = state.tab === "open" ? "grid" : "none";
 
@@ -1313,7 +1327,7 @@
             <div class="pending-buttons">
               <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
               <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length && order.status === "open" ? "" : "disabled"}>${order.status === "served" ? "已給餐" : "完成"}</button>
-              <button class="success-btn" type="button" data-paid-pending="${order.id}" ${order.status === "served" ? "" : "disabled"}>已付款</button>
+              <button class="${order.paid ? "success-btn" : "secondary-btn"}" type="button" data-paid-pending="${order.id}">${order.paid ? "已付款" : "未付款"}</button>
             </div>
           </div>
         </article>
@@ -1383,7 +1397,7 @@
       }
 
       if (paid) {
-        markPaid(paid.dataset.paidPending);
+        togglePaid(paid.dataset.paidPending);
       }
     });
 
