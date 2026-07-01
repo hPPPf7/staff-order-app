@@ -106,7 +106,7 @@
 
     .left {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
     }
 
     .right {
@@ -116,32 +116,10 @@
       grid-template-rows: minmax(310px, 1fr) auto;
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-
-    h1,
     h2,
     h3,
     p {
       margin: 0;
-    }
-
-    h1 {
-      font-size: 28px;
-      line-height: 1.15;
-      letter-spacing: 0;
-    }
-
-    .clock {
-      min-width: 96px;
-      color: var(--muted);
-      text-align: right;
-      font-weight: 700;
     }
 
     .customer-strip {
@@ -600,7 +578,7 @@
 
     .tabs {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr auto;
       gap: 6px;
       padding: 8px;
       background: #eee8df;
@@ -618,6 +596,19 @@
       background: var(--panel);
       color: var(--ink);
       box-shadow: 0 4px 12px rgba(69, 52, 34, 0.1);
+    }
+
+    .clear-history-btn {
+      padding: 0 14px;
+      border: 1px solid #c74335;
+      border-radius: 8px;
+      color: #a92824;
+      background: #fff;
+      font-weight: 900;
+    }
+
+    .clear-history-btn:disabled {
+      opacity: 0.45;
     }
 
     .records {
@@ -737,13 +728,14 @@
         grid-template-rows: minmax(390px, 1fr) auto;
       }
 
+      .left {
+        min-height: calc(100vh - 36px);
+        overflow: hidden;
+      }
+
       .order-panel {
         height: 100%;
         min-height: 390px;
-      }
-
-      .pending-list {
-        max-height: 45vh;
       }
 
       .items {
@@ -764,12 +756,8 @@
         min-height: calc(100vh - 20px);
       }
 
-      .topbar {
-        align-items: flex-start;
-      }
-
-      h1 {
-        font-size: 24px;
+      .left {
+        min-height: calc(100vh - 20px);
       }
 
       .customer-strip {
@@ -817,14 +805,6 @@
 <body>
   <main class="app">
     <section class="left" aria-label="待出餐與歷史紀錄">
-      <div class="topbar">
-        <div>
-          <h1>員工點餐記錄</h1>
-          <p class="current-customer" id="summaryText">新增客人後開始點餐</p>
-        </div>
-        <div class="clock" id="clock">--:--</div>
-      </div>
-
       <section class="pending-panel" aria-label="待出餐訂單">
         <div class="pending-head">
           <div>
@@ -839,6 +819,7 @@
         <div class="tabs">
           <button class="tab active" id="openTab" type="button">待出餐</button>
           <button class="tab" id="historyTab" type="button">歷史紀錄</button>
+          <button class="clear-history-btn" id="clearHistoryBtn" type="button" hidden>清除全部</button>
         </div>
         <div class="pending-list" id="pendingList"></div>
         <div class="records" id="records"></div>
@@ -880,7 +861,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.4";
+    const appVersion = "1.2.5";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -921,7 +902,6 @@
     const el = {
       menu: document.getElementById("menu"),
       activeCustomer: document.getElementById("activeCustomer"),
-      summaryText: document.getElementById("summaryText"),
       items: document.getElementById("items"),
       total: document.getElementById("total"),
       saveBtn: document.getElementById("saveBtn"),
@@ -933,8 +913,8 @@
       records: document.getElementById("records"),
       openTab: document.getElementById("openTab"),
       historyTab: document.getElementById("historyTab"),
+      clearHistoryBtn: document.getElementById("clearHistoryBtn"),
       clearAllBtn: document.getElementById("clearAllBtn"),
-      clock: document.getElementById("clock"),
       updateOverlay: document.getElementById("updateOverlay"),
       updateMessage: document.getElementById("updateMessage"),
       updateLaterBtn: document.getElementById("updateLaterBtn"),
@@ -1209,6 +1189,18 @@
       render();
     }
 
+    function clearHistory() {
+      const history = historyOrders();
+      if (!history.length) return;
+      const confirmed = window.confirm(`要清除全部 ${history.length} 筆歷史紀錄嗎？待出餐訂單不會被刪除。`);
+      if (!confirmed) return;
+      const historyIds = new Set(history.map(order => order.id));
+      state.orders = state.orders.filter(order => !historyIds.has(order.id));
+      if (historyIds.has(state.activeId)) state.activeId = null;
+      persist();
+      render();
+    }
+
     function renderMenu() {
       el.menu.innerHTML = menu.map(group => `
         <section class="menu-card ${group.wide ? "wide" : ""}">
@@ -1232,7 +1224,6 @@
       const order = activeOrder();
       if (!order) {
         el.activeCustomer.textContent = "尚未選擇";
-        el.summaryText.textContent = "右側直接點餐，送出後進待出餐";
         el.items.innerHTML = `<div class="empty">直接點餐，系統會自動建立下一位客人。</div>`;
         el.total.textContent = money(0);
         el.doneBtn.disabled = true;
@@ -1242,7 +1233,6 @@
       }
 
       el.activeCustomer.textContent = `${order.name} · ${statusLabel(order)}`;
-      el.summaryText.textContent = `${order.name}：${orderCount(order)} 份，${money(orderTotal(order))}`;
       el.total.textContent = money(orderTotal(order));
       el.doneBtn.disabled = order.items.length === 0 || order.status === "done";
       el.doneBtn.textContent = order.status === "draft" ? "送出待出餐" : "更新待出餐";
@@ -1274,6 +1264,8 @@
 
       el.openTab.classList.toggle("active", state.tab === "open");
       el.historyTab.classList.toggle("active", state.tab === "history");
+      el.clearHistoryBtn.hidden = state.tab !== "history";
+      el.clearHistoryBtn.disabled = source.length === 0;
       el.records.style.display = state.tab === "history" ? "grid" : "none";
 
       if (!source.length) {
@@ -1365,10 +1357,6 @@
     load();
     render();
     checkForUpdates();
-    el.clock.textContent = nowLabel();
-    setInterval(() => {
-      el.clock.textContent = nowLabel();
-    }, 30000);
 
     el.menu.addEventListener("click", event => {
       const button = event.target.closest("[data-add]");
@@ -1438,6 +1426,7 @@
 
     el.doneBtn.addEventListener("click", submitActiveOrder);
     el.clearAllBtn.addEventListener("click", clearAll);
+    el.clearHistoryBtn.addEventListener("click", clearHistory);
     el.updateLaterBtn.addEventListener("click", () => {
       el.updateOverlay.hidden = true;
     });
