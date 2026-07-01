@@ -113,7 +113,7 @@
       display: grid;
       gap: 14px;
       align-content: start;
-      grid-template-rows: auto auto;
+      grid-template-rows: auto minmax(0, 1fr);
     }
 
     .topbar {
@@ -221,6 +221,7 @@
       grid-auto-rows: max-content;
       align-content: start;
       align-items: start;
+      align-self: end;
       gap: 12px;
     }
 
@@ -731,6 +732,10 @@
         overflow: visible;
       }
 
+      .right {
+        min-height: calc(100vh - 36px);
+      }
+
       .order-panel {
         height: 390px;
         min-height: auto;
@@ -752,6 +757,10 @@
       .app {
         padding: 10px;
         gap: 10px;
+      }
+
+      .right {
+        min-height: calc(100vh - 20px);
       }
 
       .topbar {
@@ -870,7 +879,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.1";
+    const appVersion = "1.2.2";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
