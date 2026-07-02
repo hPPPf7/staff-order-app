@@ -226,19 +226,11 @@
     .menu-title {
       display: flex;
       align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
     }
 
     .menu-title h2 {
       font-size: 22px;
       line-height: 1.2;
-    }
-
-    .price {
-      color: var(--brand);
-      font-weight: 900;
-      font-size: 20px;
     }
 
     .option-grid {
@@ -254,22 +246,25 @@
       background: var(--panel-soft);
       color: var(--ink);
       display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 8px 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
       text-align: left;
     }
 
     .option-btn strong {
-      font-size: 18px;
-      line-height: 1.15;
+      font-size: 22px;
+      line-height: 1.1;
     }
 
     .option-btn span {
-      color: var(--muted);
-      margin-top: 4px;
-      font-weight: 800;
+      color: var(--brand);
+      margin-left: auto;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
     }
 
     .option-btn:active {
@@ -861,7 +856,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.6";
+    const appVersion = "1.2.7";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1220,13 +1215,12 @@
         <section class="menu-card ${group.wide ? "wide" : ""}">
           <div class="menu-title">
             <h2>${group.title}</h2>
-            <span class="price">${group.options.length === 1 ? money(group.options[0].price) : "選口味"}</span>
           </div>
           <div class="option-grid">
             ${group.options.map(option => `
               <button class="option-btn" type="button" data-add="${option.key}">
                 <strong>${option.variant || option.name}</strong>
-                <span>${option.variant ? option.name + " " : ""}${money(option.price)}</span>
+                <span>${money(option.price)}</span>
               </button>
             `).join("")}
           </div>
@@ -1238,7 +1232,7 @@
       const order = activeOrder();
       if (!order) {
         el.activeCustomer.textContent = "尚未選擇";
-        el.items.innerHTML = `<div class="empty">直接點餐，系統會自動建立下一位客人。</div>`;
+        el.items.innerHTML = "";
         el.total.textContent = money(0);
         el.doneBtn.disabled = true;
         el.doneBtn.textContent = "送出待出餐";
@@ -1246,7 +1240,7 @@
         return;
       }
 
-      el.activeCustomer.textContent = `${order.name} · ${statusLabel(order)}`;
+      el.activeCustomer.textContent = order.name;
       el.total.textContent = money(orderTotal(order));
       el.doneBtn.disabled = order.items.length === 0 || order.status === "done";
       el.doneBtn.textContent = order.status === "draft" ? "送出待出餐" : "更新待出餐";
