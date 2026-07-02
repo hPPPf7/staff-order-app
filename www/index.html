@@ -616,6 +616,77 @@
       padding: 12px;
     }
 
+    .history-summary {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      border: 2px solid #d9a19a;
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      box-shadow: 0 6px 16px rgba(69, 52, 34, 0.12);
+    }
+
+    .history-summary-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .history-summary-label {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .history-summary-total {
+      color: var(--brand);
+      font-size: 28px;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .history-summary-meta {
+      color: #453d36;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .history-item-counts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .history-item-count {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-soft);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 850;
+    }
+
+    .history-item-count span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item-count strong {
+      color: var(--brand);
+      font-size: 18px;
+      white-space: nowrap;
+    }
+
     .record {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -792,6 +863,15 @@
         flex-direction: column;
       }
 
+      .history-summary-top {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .history-item-counts {
+        grid-template-columns: 1fr;
+      }
+
       .record-buttons {
         justify-content: flex-start;
       }
@@ -857,7 +937,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.8";
+    const appVersion = "1.2.9";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1017,7 +1097,12 @@
     }
 
     function itemLabel(item) {
-      return item.variant ? `${item.name}（${item.variant}）` : item.name;
+      const currentOption = menu
+        .flatMap(group => group.options)
+        .find(option => option.key === item.key);
+      const name = currentOption?.name || item.name;
+      const variant = currentOption?.variant || item.variant;
+      return variant ? `${name}（${variant}）` : name;
     }
 
     function statusLabel(order) {
@@ -1280,6 +1365,16 @@
 
     function renderRecords() {
       const source = historyOrders();
+      const totalAmount = source.reduce((sum, order) => sum + orderTotal(order), 0);
+      const totalItems = source.reduce((sum, order) => sum + orderCount(order), 0);
+      const itemCounts = new Map();
+
+      source.forEach(order => {
+        order.items.forEach(item => {
+          const label = itemLabel(item);
+          itemCounts.set(label, (itemCounts.get(label) || 0) + item.qty);
+        });
+      });
 
       el.openTab.classList.toggle("active", state.tab === "open");
       el.historyTab.classList.toggle("active", state.tab === "history");
@@ -1292,7 +1387,27 @@
         return;
       }
 
-      el.records.innerHTML = source.map(order => `
+      el.records.innerHTML = `
+        <section class="history-summary" aria-label="歷史紀錄統計">
+          <div class="history-summary-top">
+            <div>
+              <div class="history-summary-label">歷史總金額</div>
+              <div class="history-summary-total">${money(totalAmount)}</div>
+            </div>
+            <div class="history-summary-meta">${source.length} 筆訂單 · ${totalItems} 份餐點</div>
+          </div>
+          <div class="history-item-counts">
+            ${[...itemCounts.entries()]
+              .sort(([left], [right]) => left.localeCompare(right, "zh-TW"))
+              .map(([label, count]) => `
+                <div class="history-item-count">
+                  <span>${label}</span>
+                  <strong>${count} 份</strong>
+                </div>
+              `).join("")}
+          </div>
+        </section>
+        ${source.map(order => `
         <article class="record">
           <div class="record-main">
             <div>
@@ -1313,7 +1428,8 @@
             </div>
           </div>
         </article>
-      `).join("");
+        `).join("")}
+      `;
     }
 
     function renderPendingOrders() {
