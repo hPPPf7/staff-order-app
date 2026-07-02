@@ -411,7 +411,8 @@
 
     .pending-card-actions .secondary-btn,
     .pending-card-actions .primary-btn,
-    .pending-card-actions .success-btn {
+    .pending-card-actions .success-btn,
+    .pending-card-actions .danger-btn {
       min-height: 32px;
       border-radius: 7px;
       padding: 0 10px;
@@ -856,7 +857,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.7";
+    const appVersion = "1.2.8";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1146,6 +1147,16 @@
       render();
     }
 
+    function confirmPendingRemoval(id) {
+      const order = state.orders.find(row => row.id === id);
+      if (!order || (order.status !== "open" && order.status !== "served")) return;
+      const firstConfirmed = window.confirm(`要刪除 ${order.name} 的待出餐訂單嗎？金額 ${money(orderTotal(order))}。`);
+      if (!firstConfirmed) return;
+      const secondConfirmed = window.confirm(`再次確認：確定永久刪除 ${order.name}？刪除後無法復原。`);
+      if (!secondConfirmed) return;
+      removeOrder(id);
+    }
+
     function reopenOrder(id) {
       const order = state.orders.find(row => row.id === id);
       if (!order) return;
@@ -1349,6 +1360,7 @@
               <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
               <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length && order.status === "open" ? "" : "disabled"}>${order.status === "served" ? "已給餐" : "完成"}</button>
               <button class="${order.paid ? "success-btn" : "secondary-btn"}" type="button" data-paid-pending="${order.id}">${order.paid ? "已付款" : "未付款"}</button>
+              <button class="danger-btn" type="button" data-remove-pending="${order.id}">刪除</button>
             </div>
           </div>
         </article>
@@ -1401,20 +1413,28 @@
       const select = event.target.closest("[data-select-pending]");
       const complete = event.target.closest("[data-complete-pending]");
       const paid = event.target.closest("[data-paid-pending]");
+      const remove = event.target.closest("[data-remove-pending]");
 
       if (select) {
         state.activeId = select.dataset.selectPending;
         persist();
         render();
+        return;
       }
 
       if (complete) {
         state.activeId = complete.dataset.completePending;
         markServed();
+        return;
       }
 
       if (paid) {
         togglePaid(paid.dataset.paidPending);
+        return;
+      }
+
+      if (remove) {
+        confirmPendingRemoval(remove.dataset.removePending);
       }
     });
 
