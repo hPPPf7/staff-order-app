@@ -574,7 +574,7 @@
 
     .tabs {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
       padding: 8px;
       background: #eee8df;
@@ -605,6 +605,27 @@
 
     .clear-history-btn:disabled {
       opacity: 0.45;
+    }
+
+    .history-summary-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .history-summary-actions button {
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .archive-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
     }
 
     .records {
@@ -895,10 +916,11 @@
         <div class="tabs">
           <button class="tab active" id="openTab" type="button">待出餐</button>
           <button class="tab" id="historyTab" type="button">歷史紀錄</button>
-          <button class="clear-history-btn" id="clearHistoryBtn" type="button" hidden>清除全部</button>
+          <button class="tab" id="archiveTab" type="button">封存紀錄</button>
         </div>
         <div class="pending-list" id="pendingList"></div>
         <div class="records" id="records"></div>
+        <div class="records" id="archives"></div>
       </section>
     </section>
 
@@ -937,7 +959,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.9";
+    const appVersion = "1.2.10";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -958,12 +980,18 @@
       },
       {
         title: "飛碟餅",
-        wide: true,
         options: [
           { key: "ufo-egg", name: "飛碟餅", variant: "蔥蛋", price: 60 },
           { key: "ufo-meat", name: "飛碟餅", variant: "加肉", price: 70 },
           { key: "ufo-cheese", name: "飛碟餅", variant: "加起司", price: 70 },
           { key: "ufo-all", name: "飛碟餅", variant: "全加", price: 80 }
+        ]
+      },
+      {
+        title: "飲料",
+        options: [
+          { key: "drink-black-tea", name: "紅茶", variant: "", price: 20 },
+          { key: "drink-milk-tea", name: "奶茶", variant: "", price: 25 }
         ]
       }
     ];
@@ -971,6 +999,7 @@
     const storageKey = "staff-order-app-v1";
     const state = {
       orders: [],
+      archives: [],
       activeId: null,
       tab: "open"
     };
@@ -987,9 +1016,10 @@
       pendingItemsCount: document.getElementById("pendingItemsCount"),
       pendingTotalText: document.getElementById("pendingTotalText"),
       records: document.getElementById("records"),
+      archives: document.getElementById("archives"),
       openTab: document.getElementById("openTab"),
       historyTab: document.getElementById("historyTab"),
-      clearHistoryBtn: document.getElementById("clearHistoryBtn"),
+      archiveTab: document.getElementById("archiveTab"),
       clearAllBtn: document.getElementById("clearAllBtn"),
       updateOverlay: document.getElementById("updateOverlay"),
       updateMessage: document.getElementById("updateMessage"),
@@ -1061,6 +1091,14 @@
       return date.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
     }
 
+    function todayDateInput() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
     function load() {
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -1070,17 +1108,20 @@
             paid: order.status === "done" ? true : Boolean(order.paid)
           }));
           state.activeId = saved.activeId || null;
+          state.archives = Array.isArray(saved.archives) ? saved.archives : [];
         }
       } catch (error) {
         state.orders = [];
         state.activeId = null;
+        state.archives = [];
       }
     }
 
     function persist() {
       localStorage.setItem(storageKey, JSON.stringify({
         orders: state.orders,
-        activeId: state.activeId
+        activeId: state.activeId,
+        archives: state.archives
       }));
     }
 
@@ -1280,13 +1321,7 @@
       render();
     }
 
-    function clearHistory() {
-      const history = historyOrders();
-      if (!history.length) return;
-      const confirmed = window.confirm(`要清除全部 ${history.length} 筆歷史紀錄嗎？待出餐訂單不會被刪除。`);
-      if (!confirmed) return;
-      const historyIds = new Set(history.map(order => order.id));
-      state.orders = state.orders.filter(order => !historyIds.has(order.id));
+    function renumberDraftOrders() {
       let nextNumber = state.orders
         .filter(order => order.status !== "draft")
         .reduce((max, order) => {
@@ -1301,7 +1336,49 @@
           order.name = `客人 ${nextNumber}`;
           order.updatedAt = new Date().toISOString();
         });
+    }
+
+    function removeHistoryOrders(history) {
+      const historyIds = new Set(history.map(order => order.id));
+      state.orders = state.orders.filter(order => !historyIds.has(order.id));
+      renumberDraftOrders();
       if (historyIds.has(state.activeId)) state.activeId = null;
+    }
+
+    function clearHistory() {
+      const history = historyOrders();
+      if (!history.length) return;
+      const confirmed = window.confirm(`要清除全部 ${history.length} 筆歷史紀錄嗎？待出餐訂單不會被刪除。`);
+      if (!confirmed) return;
+      removeHistoryOrders(history);
+      persist();
+      render();
+    }
+
+    function archiveHistory() {
+      const history = historyOrders();
+      if (!history.length) return;
+      const input = window.prompt("要將目前的歷史紀錄保存成哪一天？", todayDateInput());
+      if (input === null) return;
+      const dateLabel = input.trim() || todayDateInput();
+      const archive = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        date: dateLabel,
+        createdAt: new Date().toISOString(),
+        orders: JSON.parse(JSON.stringify(history))
+      };
+      state.archives.push(archive);
+      removeHistoryOrders(history);
+      persist();
+      render();
+    }
+
+    function removeArchive(id) {
+      const archive = state.archives.find(row => row.id === id);
+      if (!archive) return;
+      const confirmed = window.confirm(`要刪除 ${archive.date} 的封存紀錄嗎？刪除後無法復原。`);
+      if (!confirmed) return;
+      state.archives = state.archives.filter(row => row.id !== id);
       persist();
       render();
     }
@@ -1378,8 +1455,7 @@
 
       el.openTab.classList.toggle("active", state.tab === "open");
       el.historyTab.classList.toggle("active", state.tab === "history");
-      el.clearHistoryBtn.hidden = state.tab !== "history";
-      el.clearHistoryBtn.disabled = source.length === 0;
+      el.archiveTab.classList.toggle("active", state.tab === "archive");
       el.records.style.display = state.tab === "history" ? "grid" : "none";
 
       if (!source.length) {
@@ -1406,6 +1482,10 @@
                 </div>
               `).join("")}
           </div>
+          <div class="history-summary-actions">
+            <button class="archive-btn" type="button" data-archive-history>封存為日期</button>
+            <button class="clear-history-btn" type="button" data-clear-history>清除全部</button>
+          </div>
         </section>
         ${source.map(order => `
         <article class="record">
@@ -1430,6 +1510,58 @@
         </article>
         `).join("")}
       `;
+    }
+
+    function renderArchives() {
+      el.archives.style.display = state.tab === "archive" ? "grid" : "none";
+
+      if (!state.archives.length) {
+        el.archives.innerHTML = `<div class="empty">目前沒有封存紀錄。在歷史紀錄分頁點擊「封存為日期」即可保存。</div>`;
+        return;
+      }
+
+      const sorted = [...state.archives].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      el.archives.innerHTML = sorted.map(archive => {
+        const totalAmount = archive.orders.reduce((sum, order) => sum + orderTotal(order), 0);
+        const totalItems = archive.orders.reduce((sum, order) => sum + orderCount(order), 0);
+        const itemCounts = new Map();
+
+        archive.orders.forEach(order => {
+          order.items.forEach(item => {
+            const label = itemLabel(item);
+            itemCounts.set(label, (itemCounts.get(label) || 0) + item.qty);
+          });
+        });
+
+        return `
+        <article class="record" aria-label="封存紀錄 ${archive.date}">
+          <div class="record-main">
+            <div>
+              <div class="record-name">${archive.date}</div>
+              <div class="record-time">${archive.orders.length} 筆訂單 · ${totalItems} 份餐點</div>
+            </div>
+            <div class="record-total">${money(totalAmount)}</div>
+          </div>
+          <div class="history-item-counts">
+            ${[...itemCounts.entries()]
+              .sort(([left], [right]) => left.localeCompare(right, "zh-TW"))
+              .map(([label, count]) => `
+                <div class="history-item-count">
+                  <span>${label}</span>
+                  <strong>${count} 份</strong>
+                </div>
+              `).join("")}
+          </div>
+          <div class="record-bottom">
+            <div></div>
+            <div class="record-buttons">
+              <button class="danger-btn" type="button" data-remove-archive="${archive.id}">刪除封存</button>
+            </div>
+          </div>
+        </article>
+        `;
+      }).join("");
     }
 
     function renderPendingOrders() {
@@ -1487,6 +1619,7 @@
       renderPendingOrders();
       renderCurrentOrder();
       renderRecords();
+      renderArchives();
     }
 
     renderMenu();
@@ -1511,7 +1644,17 @@
       const select = event.target.closest("[data-select]");
       const reopen = event.target.closest("[data-reopen]");
       const remove = event.target.closest("[data-remove]");
+      const archiveHistoryBtn = event.target.closest("[data-archive-history]");
+      const clearHistoryBtn = event.target.closest("[data-clear-history]");
 
+      if (archiveHistoryBtn) {
+        archiveHistory();
+        return;
+      }
+      if (clearHistoryBtn) {
+        clearHistory();
+        return;
+      }
       if (select) state.activeId = select.dataset.select;
       if (reopen) {
         reopenOrder(reopen.dataset.reopen);
@@ -1523,6 +1666,11 @@
       }
       persist();
       render();
+    });
+
+    el.archives.addEventListener("click", event => {
+      const remove = event.target.closest("[data-remove-archive]");
+      if (remove) removeArchive(remove.dataset.removeArchive);
     });
 
     el.pendingList.addEventListener("click", event => {
@@ -1558,19 +1706,27 @@
       state.tab = "open";
       renderPendingOrders();
       renderRecords();
+      renderArchives();
     });
 
     el.historyTab.addEventListener("click", () => {
       state.tab = "history";
       renderPendingOrders();
       renderRecords();
+      renderArchives();
+    });
+
+    el.archiveTab.addEventListener("click", () => {
+      state.tab = "archive";
+      renderPendingOrders();
+      renderRecords();
+      renderArchives();
     });
 
     el.saveBtn.addEventListener("click", clearActiveOrder);
 
     el.doneBtn.addEventListener("click", submitActiveOrder);
     el.clearAllBtn.addEventListener("click", clearAll);
-    el.clearHistoryBtn.addEventListener("click", clearHistory);
     el.updateLaterBtn.addEventListener("click", () => {
       el.updateOverlay.hidden = true;
     });
