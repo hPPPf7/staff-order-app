@@ -959,7 +959,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.11";
+    const appVersion = "1.2.12";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1144,6 +1144,117 @@
       const name = currentOption?.name || item.name;
       const variant = currentOption?.variant || item.variant;
       return variant ? `${name}（${variant}）` : name;
+    }
+
+    function htmlCell(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function fileSafeName(value) {
+      return String(value || "封存紀錄")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, "-")
+        .replace(/\s+/g, "-")
+        .slice(0, 60) || "封存紀錄";
+    }
+
+    async function downloadFile(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const file = new File([blob], filename, { type });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename
+        });
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportArchive(id) {
+      const archive = state.archives.find(row => row.id === id);
+      if (!archive) return;
+
+      const rows = [];
+      archive.orders.forEach(order => {
+        if (!order.items.length) {
+          rows.push([
+            archive.date,
+            order.name,
+            nowLabel(new Date(order.createdAt)),
+            "尚未加入餐點",
+            0,
+            0,
+            0,
+            orderTotal(order)
+          ]);
+          return;
+        }
+
+        order.items.forEach(item => {
+          rows.push([
+            archive.date,
+            order.name,
+            nowLabel(new Date(order.createdAt)),
+            itemLabel(item),
+            item.price,
+            item.qty,
+            item.price * item.qty,
+            orderTotal(order)
+          ]);
+        });
+      });
+
+      const totalAmount = archive.orders.reduce((sum, order) => sum + orderTotal(order), 0);
+      const totalItems = archive.orders.reduce((sum, order) => sum + orderCount(order), 0);
+      const tableRows = [
+        ["封存日期", archive.date],
+        ["訂單筆數", archive.orders.length],
+        ["餐點總份數", totalItems],
+        ["總金額", totalAmount],
+        [],
+        ["封存日期", "訂單", "時間", "餐點", "單價", "數量", "小計", "訂單合計"],
+        ...rows
+      ].map(row => `
+        <tr>${row.map(cell => `<td>${htmlCell(cell)}</td>`).join("")}</tr>
+      `).join("");
+
+      const workbook = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    table { border-collapse: collapse; font-family: "Microsoft JhengHei", Arial, sans-serif; }
+    td { border: 1px solid #999; padding: 6px 10px; mso-number-format: "\\@"; }
+  </style>
+</head>
+<body>
+  <table>${tableRows}</table>
+</body>
+</html>`;
+
+      try {
+        await downloadFile(
+          `${fileSafeName(archive.date)}-封存紀錄.xls`,
+          workbook,
+          "application/vnd.ms-excel;charset=utf-8"
+        );
+      } catch (error) {
+        window.alert("匯出失敗，請再試一次。");
+      }
     }
 
     function statusLabel(order) {
@@ -1556,6 +1667,7 @@
           <div class="record-bottom">
             <div></div>
             <div class="record-buttons">
+              <button class="secondary-btn" type="button" data-export-archive="${archive.id}">匯出 Excel</button>
               <button class="danger-btn" type="button" data-remove-archive="${archive.id}">刪除封存</button>
             </div>
           </div>
@@ -1669,7 +1781,12 @@
     });
 
     el.archives.addEventListener("click", event => {
+      const exportButton = event.target.closest("[data-export-archive]");
       const remove = event.target.closest("[data-remove-archive]");
+      if (exportButton) {
+        exportArchive(exportButton.dataset.exportArchive);
+        return;
+      }
       if (remove) removeArchive(remove.dataset.removeArchive);
     });
 
