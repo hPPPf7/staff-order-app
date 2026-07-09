@@ -1,6 +1,6 @@
 {
   "name": "staff-order-app",
-  "version": "1.2.12",
+  "version": "1.2.13",
   "private": true,
   "scripts": {
     "android:sync": "npx cap sync android",
@@ -10,7 +10,9 @@
   "dependencies": {
     "@capacitor/android": "^6.2.1",
     "@capacitor/browser": "^6.0.6",
-    "@capacitor/core": "^6.2.1"
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.1"

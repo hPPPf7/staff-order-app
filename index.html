@@ -959,7 +959,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.12";
+    const appVersion = "1.2.13";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1162,8 +1162,45 @@
         .slice(0, 60) || "封存紀錄";
     }
 
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function shareWithCapacitor(filename, blob) {
+      const filesystem = window.Capacitor?.Plugins?.Filesystem;
+      const share = window.Capacitor?.Plugins?.Share;
+      if (!filesystem?.writeFile || !filesystem?.getUri || !share?.share) return false;
+
+      const path = `exports/${Date.now()}-${filename}`;
+      const data = await blobToBase64(blob);
+      await filesystem.writeFile({
+        path,
+        data,
+        directory: "CACHE",
+        recursive: true
+      });
+      const uri = await filesystem.getUri({
+        path,
+        directory: "CACHE"
+      });
+      await share.share({
+        title: filename,
+        text: filename,
+        url: uri.uri,
+        dialogTitle: "匯出 Excel"
+      });
+      return true;
+    }
+
     async function downloadFile(filename, content, type) {
       const blob = new Blob([content], { type });
+      if (await shareWithCapacitor(filename, blob)) return;
+
       const file = new File([blob], filename, { type });
 
       if (navigator.canShare?.({ files: [file] })) {
@@ -1184,50 +1221,55 @@
       URL.revokeObjectURL(url);
     }
 
-    async function exportArchive(id) {
-      const archive = state.archives.find(row => row.id === id);
-      if (!archive) return;
-
+    function archiveRows(archives) {
       const rows = [];
-      archive.orders.forEach(order => {
-        if (!order.items.length) {
-          rows.push([
-            archive.date,
-            order.name,
-            nowLabel(new Date(order.createdAt)),
-            "尚未加入餐點",
-            0,
-            0,
-            0,
-            orderTotal(order)
-          ]);
-          return;
-        }
+      archives.forEach(archive => {
+        archive.orders.forEach(order => {
+          if (!order.items.length) {
+            rows.push([
+              archive.date,
+              order.name,
+              nowLabel(new Date(order.createdAt)),
+              "尚未加入餐點",
+              0,
+              0,
+              0,
+              orderTotal(order)
+            ]);
+            return;
+          }
 
-        order.items.forEach(item => {
-          rows.push([
-            archive.date,
-            order.name,
-            nowLabel(new Date(order.createdAt)),
-            itemLabel(item),
-            item.price,
-            item.qty,
-            item.price * item.qty,
-            orderTotal(order)
-          ]);
+          order.items.forEach(item => {
+            rows.push([
+              archive.date,
+              order.name,
+              nowLabel(new Date(order.createdAt)),
+              itemLabel(item),
+              item.price,
+              item.qty,
+              item.price * item.qty,
+              orderTotal(order)
+            ]);
+          });
         });
       });
+      return rows;
+    }
 
-      const totalAmount = archive.orders.reduce((sum, order) => sum + orderTotal(order), 0);
-      const totalItems = archive.orders.reduce((sum, order) => sum + orderCount(order), 0);
+    async function exportArchives(archives, filename) {
+      if (!archives.length) return;
+
+      const orders = archives.flatMap(archive => archive.orders);
+      const totalAmount = orders.reduce((sum, order) => sum + orderTotal(order), 0);
+      const totalItems = orders.reduce((sum, order) => sum + orderCount(order), 0);
       const tableRows = [
-        ["封存日期", archive.date],
-        ["訂單筆數", archive.orders.length],
+        ["封存筆數", archives.length],
+        ["訂單筆數", orders.length],
         ["餐點總份數", totalItems],
         ["總金額", totalAmount],
         [],
         ["封存日期", "訂單", "時間", "餐點", "單價", "數量", "小計", "訂單合計"],
-        ...rows
+        ...archiveRows(archives)
       ].map(row => `
         <tr>${row.map(cell => `<td>${htmlCell(cell)}</td>`).join("")}</tr>
       `).join("");
@@ -1248,13 +1290,24 @@
 
       try {
         await downloadFile(
-          `${fileSafeName(archive.date)}-封存紀錄.xls`,
+          filename,
           workbook,
           "application/vnd.ms-excel;charset=utf-8"
         );
       } catch (error) {
         window.alert("匯出失敗，請再試一次。");
       }
+    }
+
+    function exportArchive(id) {
+      const archive = state.archives.find(row => row.id === id);
+      if (!archive) return;
+      exportArchives([archive], `${fileSafeName(archive.date)}-封存紀錄.xls`);
+    }
+
+    function exportAllArchives() {
+      const sorted = [...state.archives].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      exportArchives(sorted, "全部封存紀錄.xls");
     }
 
     function statusLabel(order) {
@@ -1632,8 +1685,25 @@
       }
 
       const sorted = [...state.archives].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const archivedOrderCount = state.archives.reduce((sum, archive) => sum + archive.orders.length, 0);
+      const archivedItemCount = state.archives.reduce((sum, archive) => {
+        return sum + archive.orders.reduce((orderSum, order) => orderSum + orderCount(order), 0);
+      }, 0);
 
-      el.archives.innerHTML = sorted.map(archive => {
+      el.archives.innerHTML = `
+        <section class="history-summary" aria-label="封存紀錄操作">
+          <div class="history-summary-top">
+            <div>
+              <div class="history-summary-label">全部封存紀錄</div>
+              <div class="history-summary-total">${state.archives.length} 筆封存</div>
+            </div>
+            <div class="history-summary-meta">${archivedOrderCount} 筆訂單 · ${archivedItemCount} 份餐點</div>
+          </div>
+          <div class="history-summary-actions">
+            <button class="archive-btn" type="button" data-export-all-archives>匯出全部 Excel</button>
+          </div>
+        </section>
+        ${sorted.map(archive => {
         const totalAmount = archive.orders.reduce((sum, order) => sum + orderTotal(order), 0);
         const totalItems = archive.orders.reduce((sum, order) => sum + orderCount(order), 0);
         const itemCounts = new Map();
@@ -1673,7 +1743,8 @@
           </div>
         </article>
         `;
-      }).join("");
+      }).join("")}
+      `;
     }
 
     function renderPendingOrders() {
@@ -1781,8 +1852,13 @@
     });
 
     el.archives.addEventListener("click", event => {
+      const exportAllButton = event.target.closest("[data-export-all-archives]");
       const exportButton = event.target.closest("[data-export-archive]");
       const remove = event.target.closest("[data-remove-archive]");
+      if (exportAllButton) {
+        exportAllArchives();
+        return;
+      }
       if (exportButton) {
         exportArchive(exportButton.dataset.exportArchive);
         return;
