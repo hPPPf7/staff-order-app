@@ -404,10 +404,9 @@
 
     .pending-buttons {
       display: flex;
-      flex: 1;
-      gap: 18px;
+      gap: 30px;
       flex-wrap: wrap;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
     }
 
@@ -420,7 +419,6 @@
 
     .pending-button-group.payments {
       justify-content: flex-end;
-      margin-left: auto;
     }
 
     .pending-card-actions .secondary-btn,
@@ -914,13 +912,12 @@
       .pending-buttons {
         width: 100%;
         gap: 10px;
+        justify-content: flex-start;
       }
 
       .pending-button-group,
       .pending-button-group.payments {
-        width: 100%;
         justify-content: flex-start;
-        margin-left: 0;
       }
     }
   </style>
@@ -985,7 +982,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.15";
+    const appVersion = "1.2.16";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
