@@ -688,6 +688,33 @@
       white-space: nowrap;
     }
 
+    .payment-breakdown {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      justify-content: flex-end;
+      text-align: right;
+    }
+
+    .payment-breakdown-row {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      font-weight: 900;
+      color: #453d36;
+      white-space: nowrap;
+    }
+
+    .payment-breakdown-row span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .payment-breakdown-row strong {
+      color: var(--brand);
+      font-size: 16px;
+    }
+
     .history-item-counts {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -982,7 +1009,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.16";
+    const appVersion = "1.2.17";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1714,23 +1741,25 @@
               <div class="history-summary-label">歷史總金額</div>
               <div class="history-summary-total">${money(totals.total)}</div>
             </div>
-            <div class="history-summary-meta">${source.length} 筆訂單 · ${totalItems} 份餐點</div>
-          </div>
-          <div class="history-item-counts">
-            <div class="history-item-count">
-              <span>現金</span>
-              <strong>${money(totals.cash)}</strong>
-            </div>
-            <div class="history-item-count">
-              <span>電子支付</span>
-              <strong>${money(totals.electronic)}</strong>
-            </div>
-            ${totals.unknown ? `
-              <div class="history-item-count">
-                <span>舊資料已付款</span>
-                <strong>${money(totals.unknown)}</strong>
+            <div>
+              <div class="history-summary-meta">${source.length} 筆訂單 · ${totalItems} 份餐點</div>
+              <div class="payment-breakdown" aria-label="付款方式金額">
+                <div class="payment-breakdown-row">
+                  <span>現金</span>
+                  <strong>${money(totals.cash)}</strong>
+                </div>
+                <div class="payment-breakdown-row">
+                  <span>電子支付</span>
+                  <strong>${money(totals.electronic)}</strong>
+                </div>
+                ${totals.unknown ? `
+                  <div class="payment-breakdown-row">
+                    <span>舊資料已付款</span>
+                    <strong>${money(totals.unknown)}</strong>
+                  </div>
+                ` : ""}
               </div>
-            ` : ""}
+            </div>
           </div>
           <div class="history-item-counts">
             ${[...itemCounts.entries()]
@@ -1795,23 +1824,25 @@
               <div class="history-summary-label">全部封存紀錄</div>
               <div class="history-summary-total">${money(archivedTotals.total)}</div>
             </div>
-            <div class="history-summary-meta">${archivedOrderCount} 筆訂單 · ${archivedItemCount} 份餐點</div>
-          </div>
-          <div class="history-item-counts">
-            <div class="history-item-count">
-              <span>現金</span>
-              <strong>${money(archivedTotals.cash)}</strong>
-            </div>
-            <div class="history-item-count">
-              <span>電子支付</span>
-              <strong>${money(archivedTotals.electronic)}</strong>
-            </div>
-            ${archivedTotals.unknown ? `
-              <div class="history-item-count">
-                <span>舊資料已付款</span>
-                <strong>${money(archivedTotals.unknown)}</strong>
+            <div>
+              <div class="history-summary-meta">${archivedOrderCount} 筆訂單 · ${archivedItemCount} 份餐點</div>
+              <div class="payment-breakdown" aria-label="付款方式金額">
+                <div class="payment-breakdown-row">
+                  <span>現金</span>
+                  <strong>${money(archivedTotals.cash)}</strong>
+                </div>
+                <div class="payment-breakdown-row">
+                  <span>電子支付</span>
+                  <strong>${money(archivedTotals.electronic)}</strong>
+                </div>
+                ${archivedTotals.unknown ? `
+                  <div class="payment-breakdown-row">
+                    <span>舊資料已付款</span>
+                    <strong>${money(archivedTotals.unknown)}</strong>
+                  </div>
+                ` : ""}
               </div>
-            ` : ""}
+            </div>
           </div>
           <div class="history-summary-actions">
             <button class="archive-btn" type="button" data-export-all-archives>匯出全部 Excel</button>
@@ -1836,23 +1867,25 @@
               <div class="record-name">${archive.date}</div>
               <div class="record-time">${archive.orders.length} 筆訂單 · ${totalItems} 份餐點</div>
             </div>
-            <div class="record-total">${money(archiveTotals.total)}</div>
-          </div>
-          <div class="history-item-counts">
-            <div class="history-item-count">
-              <span>現金</span>
-              <strong>${money(archiveTotals.cash)}</strong>
-            </div>
-            <div class="history-item-count">
-              <span>電子支付</span>
-              <strong>${money(archiveTotals.electronic)}</strong>
-            </div>
-            ${archiveTotals.unknown ? `
-              <div class="history-item-count">
-                <span>舊資料已付款</span>
-                <strong>${money(archiveTotals.unknown)}</strong>
+            <div>
+              <div class="record-total">${money(archiveTotals.total)}</div>
+              <div class="payment-breakdown" aria-label="付款方式金額">
+                <div class="payment-breakdown-row">
+                  <span>現金</span>
+                  <strong>${money(archiveTotals.cash)}</strong>
+                </div>
+                <div class="payment-breakdown-row">
+                  <span>電子支付</span>
+                  <strong>${money(archiveTotals.electronic)}</strong>
+                </div>
+                ${archiveTotals.unknown ? `
+                  <div class="payment-breakdown-row">
+                    <span>舊資料已付款</span>
+                    <strong>${money(archiveTotals.unknown)}</strong>
+                  </div>
+                ` : ""}
               </div>
-            ` : ""}
+            </div>
           </div>
           <div class="history-item-counts">
             ${[...itemCounts.entries()]
