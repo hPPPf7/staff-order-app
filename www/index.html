@@ -959,7 +959,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.13";
+    const appVersion = "1.2.12";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1547,6 +1547,18 @@
       render();
     }
 
+    function editArchiveDate(id) {
+      const archive = state.archives.find(row => row.id === id);
+      if (!archive) return;
+      const input = window.prompt("要修改成哪一天？", archive.date);
+      if (input === null) return;
+      const dateLabel = input.trim();
+      if (!dateLabel || dateLabel === archive.date) return;
+      archive.date = dateLabel;
+      persist();
+      render();
+    }
+
     function renderMenu() {
       el.menu.innerHTML = menu.map(group => `
         <section class="menu-card ${group.wide ? "wide" : ""}">
@@ -1738,6 +1750,7 @@
             <div></div>
             <div class="record-buttons">
               <button class="secondary-btn" type="button" data-export-archive="${archive.id}">匯出 Excel</button>
+              <button class="secondary-btn" type="button" data-edit-archive="${archive.id}">修改日期</button>
               <button class="danger-btn" type="button" data-remove-archive="${archive.id}">刪除封存</button>
             </div>
           </div>
@@ -1854,6 +1867,7 @@
     el.archives.addEventListener("click", event => {
       const exportAllButton = event.target.closest("[data-export-all-archives]");
       const exportButton = event.target.closest("[data-export-archive]");
+      const edit = event.target.closest("[data-edit-archive]");
       const remove = event.target.closest("[data-remove-archive]");
       if (exportAllButton) {
         exportAllArchives();
@@ -1861,6 +1875,10 @@
       }
       if (exportButton) {
         exportArchive(exportButton.dataset.exportArchive);
+        return;
+      }
+      if (edit) {
+        editArchiveDate(edit.dataset.editArchive);
         return;
       }
       if (remove) removeArchive(remove.dataset.removeArchive);
