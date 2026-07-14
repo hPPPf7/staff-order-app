@@ -404,9 +404,23 @@
 
     .pending-buttons {
       display: flex;
+      flex: 1;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pending-button-group {
+      display: flex;
       gap: 6px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pending-button-group.payments {
       justify-content: flex-end;
+      margin-left: auto;
     }
 
     .pending-card-actions .secondary-btn,
@@ -896,6 +910,18 @@
       .record-buttons {
         justify-content: flex-start;
       }
+
+      .pending-buttons {
+        width: 100%;
+        gap: 10px;
+      }
+
+      .pending-button-group,
+      .pending-button-group.payments {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+      }
     }
   </style>
 </head>
@@ -959,7 +985,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.14";
+    const appVersion = "1.2.15";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1103,12 +1129,14 @@
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey));
         if (saved && Array.isArray(saved.orders)) {
-          state.orders = saved.orders.map(order => ({
-            ...order,
-            paid: order.status === "done" ? true : Boolean(order.paid)
-          }));
+          state.orders = saved.orders.map(normalizeOrder);
           state.activeId = saved.activeId || null;
-          state.archives = Array.isArray(saved.archives) ? saved.archives : [];
+          state.archives = Array.isArray(saved.archives)
+            ? saved.archives.map(archive => ({
+              ...archive,
+              orders: Array.isArray(archive.orders) ? archive.orders.map(normalizeOrder) : []
+            }))
+            : [];
         }
       } catch (error) {
         state.orders = [];
@@ -1144,6 +1172,44 @@
       const name = currentOption?.name || item.name;
       const variant = currentOption?.variant || item.variant;
       return variant ? `${name}（${variant}）` : name;
+    }
+
+    function normalizeOrder(order) {
+      const paymentMethod = order.paymentMethod === "cash" || order.paymentMethod === "electronic"
+        ? order.paymentMethod
+        : "";
+      return {
+        ...order,
+        paymentMethod,
+        paid: Boolean(paymentMethod) || order.status === "done"
+      };
+    }
+
+    function isPaid(order) {
+      return Boolean(order.paymentMethod) || order.status === "done";
+    }
+
+    function paymentLabel(order) {
+      if (order.paymentMethod === "cash") return "現金";
+      if (order.paymentMethod === "electronic") return "電子支付";
+      return isPaid(order) ? "已付款" : "未付款";
+    }
+
+    function paymentTotals(orders) {
+      return orders.reduce((totals, order) => {
+        const total = orderTotal(order);
+        totals.total += total;
+        if (order.paymentMethod === "cash") {
+          totals.cash += total;
+        } else if (order.paymentMethod === "electronic") {
+          totals.electronic += total;
+        } else if (isPaid(order)) {
+          totals.unknown += total;
+        } else {
+          totals.unpaid += total;
+        }
+        return totals;
+      }, { total: 0, cash: 0, electronic: 0, unknown: 0, unpaid: 0 });
     }
 
     function htmlCell(value) {
@@ -1230,6 +1296,7 @@
               archive.date,
               order.name,
               nowLabel(new Date(order.createdAt)),
+              paymentLabel(order),
               "尚未加入餐點",
               0,
               0,
@@ -1244,6 +1311,7 @@
               archive.date,
               order.name,
               nowLabel(new Date(order.createdAt)),
+              paymentLabel(order),
               itemLabel(item),
               item.price,
               item.qty,
@@ -1260,15 +1328,18 @@
       if (!archives.length) return;
 
       const orders = archives.flatMap(archive => archive.orders);
-      const totalAmount = orders.reduce((sum, order) => sum + orderTotal(order), 0);
+      const totals = paymentTotals(orders);
       const totalItems = orders.reduce((sum, order) => sum + orderCount(order), 0);
       const tableRows = [
         ["封存筆數", archives.length],
         ["訂單筆數", orders.length],
         ["餐點總份數", totalItems],
-        ["總金額", totalAmount],
+        ["總金額", totals.total],
+        ["現金金額", totals.cash],
+        ["電子支付金額", totals.electronic],
+        ["舊資料已付款金額", totals.unknown],
         [],
-        ["封存日期", "訂單", "時間", "餐點", "單價", "數量", "小計", "訂單合計"],
+        ["封存日期", "訂單", "時間", "付款方式", "餐點", "單價", "數量", "小計", "訂單合計"],
         ...archiveRows(archives)
       ].map(row => `
         <tr>${row.map(cell => `<td>${htmlCell(cell)}</td>`).join("")}</tr>
@@ -1311,7 +1382,7 @@
     }
 
     function statusLabel(order) {
-      if (order.status === "done") return "已付款";
+      if (order.status === "done") return paymentLabel(order);
       if (order.status === "served") return "已給餐";
       if (order.status === "draft") return "點餐中";
       return "待出餐";
@@ -1344,6 +1415,7 @@
         items: [],
         status: "draft",
         paid: false,
+        paymentMethod: "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -1389,23 +1461,21 @@
       const order = activeOrder();
       if (!order || order.items.length === 0 || order.status !== "open") return;
       order.servedAt = new Date().toISOString();
-      order.status = order.paid ? "done" : "served";
+      order.status = isPaid(order) ? "done" : "served";
       order.updatedAt = new Date().toISOString();
       state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
       persist();
       render();
     }
 
-    function togglePaid(id) {
+    function setPaymentMethod(id, method) {
       const order = state.orders.find(row => row.id === id);
       if (!order || order.status === "done") return;
-      order.paid = !order.paid;
-      if (order.paid) {
-        order.paidAt = new Date().toISOString();
-        if (order.status === "served") order.status = "done";
-      } else {
-        delete order.paidAt;
-      }
+      if (method !== "cash" && method !== "electronic") return;
+      order.paymentMethod = method;
+      order.paid = true;
+      order.paidAt = order.paidAt || new Date().toISOString();
+      if (order.status === "served") order.status = "done";
       order.updatedAt = new Date().toISOString();
       if (order.status === "done" && state.activeId === order.id) {
         state.activeId = state.orders.find(row => row.status === "draft")?.id || null;
@@ -1452,6 +1522,7 @@
       if (!order) return;
       order.status = "open";
       order.paid = false;
+      order.paymentMethod = "";
       delete order.servedAt;
       delete order.paidAt;
       order.submittedAt = order.submittedAt || new Date().toISOString();
@@ -1618,7 +1689,7 @@
 
     function renderRecords() {
       const source = historyOrders();
-      const totalAmount = source.reduce((sum, order) => sum + orderTotal(order), 0);
+      const totals = paymentTotals(source);
       const totalItems = source.reduce((sum, order) => sum + orderCount(order), 0);
       const itemCounts = new Map();
 
@@ -1644,9 +1715,25 @@
           <div class="history-summary-top">
             <div>
               <div class="history-summary-label">歷史總金額</div>
-              <div class="history-summary-total">${money(totalAmount)}</div>
+              <div class="history-summary-total">${money(totals.total)}</div>
             </div>
             <div class="history-summary-meta">${source.length} 筆訂單 · ${totalItems} 份餐點</div>
+          </div>
+          <div class="history-item-counts">
+            <div class="history-item-count">
+              <span>現金</span>
+              <strong>${money(totals.cash)}</strong>
+            </div>
+            <div class="history-item-count">
+              <span>電子支付</span>
+              <strong>${money(totals.electronic)}</strong>
+            </div>
+            ${totals.unknown ? `
+              <div class="history-item-count">
+                <span>舊資料已付款</span>
+                <strong>${money(totals.unknown)}</strong>
+              </div>
+            ` : ""}
           </div>
           <div class="history-item-counts">
             ${[...itemCounts.entries()]
@@ -1668,7 +1755,7 @@
           <div class="record-main">
             <div>
               <div class="record-name">${order.name}</div>
-              <div class="record-time">${nowLabel(new Date(order.createdAt))}</div>
+              <div class="record-time">${nowLabel(new Date(order.createdAt))} · ${paymentLabel(order)}</div>
             </div>
             <span class="status ${order.status}">${statusLabel(order)}</span>
           </div>
@@ -1697,6 +1784,8 @@
       }
 
       const sorted = [...state.archives].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const archivedOrders = state.archives.flatMap(archive => archive.orders);
+      const archivedTotals = paymentTotals(archivedOrders);
       const archivedOrderCount = state.archives.reduce((sum, archive) => sum + archive.orders.length, 0);
       const archivedItemCount = state.archives.reduce((sum, archive) => {
         return sum + archive.orders.reduce((orderSum, order) => orderSum + orderCount(order), 0);
@@ -1707,16 +1796,32 @@
           <div class="history-summary-top">
             <div>
               <div class="history-summary-label">全部封存紀錄</div>
-              <div class="history-summary-total">${state.archives.length} 筆封存</div>
+              <div class="history-summary-total">${money(archivedTotals.total)}</div>
             </div>
             <div class="history-summary-meta">${archivedOrderCount} 筆訂單 · ${archivedItemCount} 份餐點</div>
+          </div>
+          <div class="history-item-counts">
+            <div class="history-item-count">
+              <span>現金</span>
+              <strong>${money(archivedTotals.cash)}</strong>
+            </div>
+            <div class="history-item-count">
+              <span>電子支付</span>
+              <strong>${money(archivedTotals.electronic)}</strong>
+            </div>
+            ${archivedTotals.unknown ? `
+              <div class="history-item-count">
+                <span>舊資料已付款</span>
+                <strong>${money(archivedTotals.unknown)}</strong>
+              </div>
+            ` : ""}
           </div>
           <div class="history-summary-actions">
             <button class="archive-btn" type="button" data-export-all-archives>匯出全部 Excel</button>
           </div>
         </section>
         ${sorted.map(archive => {
-        const totalAmount = archive.orders.reduce((sum, order) => sum + orderTotal(order), 0);
+        const archiveTotals = paymentTotals(archive.orders);
         const totalItems = archive.orders.reduce((sum, order) => sum + orderCount(order), 0);
         const itemCounts = new Map();
 
@@ -1734,7 +1839,23 @@
               <div class="record-name">${archive.date}</div>
               <div class="record-time">${archive.orders.length} 筆訂單 · ${totalItems} 份餐點</div>
             </div>
-            <div class="record-total">${money(totalAmount)}</div>
+            <div class="record-total">${money(archiveTotals.total)}</div>
+          </div>
+          <div class="history-item-counts">
+            <div class="history-item-count">
+              <span>現金</span>
+              <strong>${money(archiveTotals.cash)}</strong>
+            </div>
+            <div class="history-item-count">
+              <span>電子支付</span>
+              <strong>${money(archiveTotals.electronic)}</strong>
+            </div>
+            ${archiveTotals.unknown ? `
+              <div class="history-item-count">
+                <span>舊資料已付款</span>
+                <strong>${money(archiveTotals.unknown)}</strong>
+              </div>
+            ` : ""}
           </div>
           <div class="history-item-counts">
             ${[...itemCounts.entries()]
@@ -1764,7 +1885,7 @@
       const pending = pendingOrders();
       const totalItems = pending.reduce((sum, order) => sum + orderCount(order), 0);
       const unpaidTotal = pending
-        .filter(order => !order.paid)
+        .filter(order => !isPaid(order))
         .reduce((sum, order) => sum + orderTotal(order), 0);
 
       el.pendingCount.textContent = `${pending.length} 筆`;
@@ -1801,10 +1922,15 @@
           <div class="pending-card-actions">
             <div class="pending-total">${money(orderTotal(order))}</div>
             <div class="pending-buttons">
-              <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
-              <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length && order.status === "open" ? "" : "disabled"}>${order.status === "served" ? "已給餐" : "完成"}</button>
-              <button class="${order.paid ? "success-btn" : "secondary-btn"}" type="button" data-paid-pending="${order.id}">${order.paid ? "已付款" : "未付款"}</button>
-              <button class="danger-btn" type="button" data-remove-pending="${order.id}">刪除</button>
+              <div class="pending-button-group">
+                <button class="secondary-btn" type="button" data-select-pending="${order.id}">編輯</button>
+                <button class="danger-btn" type="button" data-remove-pending="${order.id}">刪除</button>
+              </div>
+              <div class="pending-button-group payments">
+                <button class="${order.paymentMethod === "cash" ? "success-btn" : "secondary-btn"}" type="button" data-payment-pending="${order.id}" data-payment-method="cash">現金</button>
+                <button class="${order.paymentMethod === "electronic" ? "success-btn" : "secondary-btn"}" type="button" data-payment-pending="${order.id}" data-payment-method="electronic">電子支付</button>
+                <button class="primary-btn" type="button" data-complete-pending="${order.id}" ${order.items.length && order.status === "open" ? "" : "disabled"}>${order.status === "served" ? "已給餐" : "完成"}</button>
+              </div>
             </div>
           </div>
         </article>
@@ -1887,7 +2013,7 @@
     el.pendingList.addEventListener("click", event => {
       const select = event.target.closest("[data-select-pending]");
       const complete = event.target.closest("[data-complete-pending]");
-      const paid = event.target.closest("[data-paid-pending]");
+      const payment = event.target.closest("[data-payment-pending]");
       const remove = event.target.closest("[data-remove-pending]");
 
       if (select) {
@@ -1903,8 +2029,8 @@
         return;
       }
 
-      if (paid) {
-        togglePaid(paid.dataset.paidPending);
+      if (payment) {
+        setPaymentMethod(payment.dataset.paymentPending, payment.dataset.paymentMethod);
         return;
       }
 
