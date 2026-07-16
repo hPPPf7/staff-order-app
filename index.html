@@ -1009,7 +1009,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.17";
+    const appVersion = "1.2.18";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1496,6 +1496,17 @@
       const order = state.orders.find(row => row.id === id);
       if (!order || order.status === "done") return;
       if (method !== "cash" && method !== "electronic") return;
+
+      if (order.paymentMethod === method) {
+        order.paymentMethod = "";
+        order.paid = false;
+        delete order.paidAt;
+        order.updatedAt = new Date().toISOString();
+        persist();
+        render();
+        return;
+      }
+
       order.paymentMethod = method;
       order.paid = true;
       order.paidAt = order.paidAt || new Date().toISOString();
