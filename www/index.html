@@ -223,6 +223,16 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .menu-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .menu-pair .option-grid {
+      grid-template-columns: 1fr;
+    }
+
     .menu-title {
       display: flex;
       align-items: baseline;
@@ -893,6 +903,7 @@
       }
 
       .menu-grid,
+      .menu-pair,
       .option-grid,
       .actions,
       .pending-card-actions {
@@ -1009,7 +1020,7 @@
   </div>
 
   <script>
-    const appVersion = "1.2.18";
+    const appVersion = "1.2.19";
     const latestReleaseUrl = "https://api.github.com/repos/hPPPf7/staff-order-app/releases/latest";
     let updateDownloadUrl = "";
     let lastUpdateCheck = 0;
@@ -1023,9 +1034,20 @@
         ]
       },
       {
-        title: "韭菜盒",
-        options: [
-          { key: "chive-box", name: "韭菜盒", variant: "", price: 40 }
+        pair: true,
+        cards: [
+          {
+            title: "韭菜盒",
+            options: [
+              { key: "chive-box", name: "韭菜盒", variant: "", price: 40 }
+            ]
+          },
+          {
+            title: "隱藏版",
+            options: [
+              { key: "hidden-special", name: "隱藏版", variant: "", price: 70 }
+            ]
+          }
         ]
       },
       {
@@ -1189,10 +1211,14 @@
       return order.items.reduce((sum, item) => sum + item.qty, 0);
     }
 
+    function allOptions() {
+      return menu.flatMap(group => group.pair
+        ? group.cards.flatMap(card => card.options)
+        : group.options);
+    }
+
     function itemLabel(item) {
-      const currentOption = menu
-        .flatMap(group => group.options)
-        .find(option => option.key === item.key);
+      const currentOption = allOptions().find(option => option.key === item.key);
       const name = currentOption?.name || item.name;
       const variant = currentOption?.variant || item.variant;
       return variant ? `${name}（${variant}）` : name;
@@ -1667,6 +1693,25 @@
 
     function renderMenu() {
       el.menu.innerHTML = menu.map(group => `
+        ${group.pair ? `
+        <div class="menu-pair">
+          ${group.cards.map(card => `
+            <section class="menu-card">
+              <div class="menu-title">
+                <h2>${card.title}</h2>
+              </div>
+              <div class="option-grid">
+                ${card.options.map(option => `
+                  <button class="option-btn" type="button" data-add="${option.key}">
+                    <strong>${option.variant || option.name}</strong>
+                    <span>${money(option.price)}</span>
+                  </button>
+                `).join("")}
+              </div>
+            </section>
+          `).join("")}
+        </div>
+        ` : `
         <section class="menu-card ${group.wide ? "wide" : ""}">
           <div class="menu-title">
             <h2>${group.title}</h2>
@@ -1680,6 +1725,7 @@
             `).join("")}
           </div>
         </section>
+        `}
       `).join("");
     }
 
@@ -1993,7 +2039,7 @@
     el.menu.addEventListener("click", event => {
       const button = event.target.closest("[data-add]");
       if (!button) return;
-      const option = menu.flatMap(group => group.options).find(row => row.key === button.dataset.add);
+      const option = allOptions().find(row => row.key === button.dataset.add);
       if (option) addItem(option);
     });
 
